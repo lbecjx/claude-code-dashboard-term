@@ -44,9 +44,16 @@ Install the "claude-code-dashboard-term" status line for me, step by step. Do no
 
 ## Manual install
 
-Requirements: Python 3 (developed and tested with 3.14), and a Claude Code recent enough to support custom status lines. `git` is optional (without it, branch and user are simply not shown).
+Requirements: Python 3.9 or newer (the CI runs 3.9, 3.12 and the latest 3.x), and a Claude Code recent enough to support custom status lines. `git` is optional (without it, branch and user are simply not shown).
 
-1. **Get the script.** Clone the repository (or just download `statusline.py` from <https://github.com/lbecjx/claude-code-dashboard-term>) and copy it:
+1. **Get the script.** Download `statusline.py` from the latest release:
+
+   ```bash
+   mkdir -p ~/.claude
+   curl -L -o ~/.claude/statusline.py https://github.com/lbecjx/claude-code-dashboard-term/releases/latest/download/statusline.py
+   ```
+
+   Or clone the repository, to read the code or to use `examples/demo.py`, and copy the file. A clone is the development version, which can be ahead of the latest release; run `git checkout <tag>` for a released one.
 
    ```bash
    git clone https://github.com/lbecjx/claude-code-dashboard-term.git
