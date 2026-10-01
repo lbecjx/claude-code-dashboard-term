@@ -4,12 +4,9 @@
 
 A compact, colored **status line for [Claude Code](https://code.claude.com)**. One small Python script that turns the session data Claude Code already gives you into a dashboard at the bottom of your terminal: which model and effort you are on, how much of your usage windows you have burned, the estimated cost, how full the context is, and where you are in git.
 
-```
- Sonnet 5.5 medium   5h ▓▓▓▓▓░░░░░ 57% ⏳ 28m   7d ▓░░░░░ 8% ⏳ 6d2h   $31.23 eq                    613K/1M ▓▓▓▓░░ 61% /compact
- Refactor auth module   my-project   feature/auth-refactor   lbecjx
-```
+![claude-code-dashboard-term running in Ghostty: model and effort, 5h and 7d usage bars with reset times, estimated cost, context window on the right, and session, folder, git branch and user on the second line](docs/screenshot.png)
 
-*(Schematic: in a real terminal the bars are drawn with colored cell backgrounds, with the label written on top, and every field carries a small icon.)*
+*The status line in [Ghostty](https://ghostty.org), mid-session. Line 1: model and effort, the 5-hour and 7-day usage bars, estimated cost, and the context window pushed to the right. Line 2: session name, folder, git branch and git user. The bars are drawn with colored cell backgrounds, with their label written on top.*
 
 - **No dependencies.** One file, Python 3 standard library only.
 - **No network.** It only reads the JSON Claude Code sends on stdin and, optionally, asks local `git` for the branch and user.
