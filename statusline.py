@@ -184,7 +184,12 @@ def cell_bar(p, width, label="", tone=None):
 # --- git --------------------------------------------------------------------------------------------------------------
 
 def workspace_dir(d):
-    return clean(get(d, "workspace", "current_dir")) or clean(d.get("cwd")) or clean(get(d, "workspace", "project_dir"))
+    """The workspace path exactly as Claude Code sent it: it goes to `git -C`, so it must not be altered. Only the text
+    shown on screen is cleaned (see folder_of)."""
+    for v in (get(d, "workspace", "current_dir"), d.get("cwd"), get(d, "workspace", "project_dir")):
+        if isinstance(v, str) and clean(v):
+            return v
+    return ""
 
 
 def git(d, *args):
@@ -213,7 +218,7 @@ def git_user_of(d):
 
 
 def folder_of(d):
-    path = workspace_dir(d)
+    path = clean(workspace_dir(d))
     return os.path.basename(path.rstrip("/")) or path
 
 
