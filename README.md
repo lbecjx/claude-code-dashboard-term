@@ -20,19 +20,19 @@ Install the "claude-code-dashboard-term" status line for me, step by step. Do no
    there is already a "statusLine" entry or a ~/.claude/statusline.py file. If either exists, make a
    timestamped backup of it (for example ~/.claude/statusline.py.bak-YYYYMMDD-HHMMSS) and tell me where it is.
 3. Download the script from
-   https://raw.githubusercontent.com/lbecjx/claude-code-dashboard-term/main/statusline.py
+   https://github.com/lbecjx/claude-code-dashboard-term/releases/latest/download/statusline.py
    to ~/.claude/statusline.py. Before installing it, show me what the file does (it should only read stdin,
    print to stdout and call local `git`; it must not use the network). Wait for my OK.
 4. Show me the exact "statusLine" block you plan to add to ~/.claude/settings.json, merged into the existing
    JSON without removing anything else, and wait for my OK:
      "statusLine": { "type": "command", "command": "python3 ~/.claude/statusline.py", "refreshInterval": 30 }
-5. Test the script with a sample payload. Download examples/demo.py from the same repository
-   (https://raw.githubusercontent.com/lbecjx/claude-code-dashboard-term/main/examples/demo.py) to a temporary file,
+5. Test the script with a sample payload. Download demo.py from the same release
+   (https://github.com/lbecjx/claude-code-dashboard-term/releases/latest/download/demo.py) to a temporary file,
    show me what it does (it only prints a JSON sample), then run:
      python3 /tmp/demo.py | COLUMNS=140 python3 ~/.claude/statusline.py
    and show me the output.
 6. Ask me whether my terminal shows Nerd Font icons. Print this line and ask what I see:
-     python3 -c "print('      ')"
+     python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf463 \uf4e3 \uf439')"
    If I see boxes, question marks or nothing, set STATUSLINE_ICONS=0 in the command
    ("command": "STATUSLINE_ICONS=0 python3 ~/.claude/statusline.py") and offer to walk me through installing
    a Nerd Font (see the "Icons and Nerd Fonts" section of the project README).
@@ -87,6 +87,7 @@ Requirements: Python 3 (developed and tested with 3.14), and a Claude Code recen
 - [Providers](#providers)
 - [Try it without a live session](#try-it-without-a-live-session)
 - [Troubleshooting](#troubleshooting)
+- [Versioning](#versioning)
 - [Issues and contributions](#issues-and-contributions)
 - [Uninstall](#uninstall)
 - [Privacy and safety](#privacy-and-safety)
@@ -110,8 +111,8 @@ Requirements: Python 3 (developed and tested with 3.14), and a Claude Code recen
 | `fast` | Shown only while Claude Code's fast mode is on. |
 | gauge icon + bars | The **usage group**: one icon, then the bars that exist. `5h` and `7d` are your subscription windows; `spend` is a gateway spend limit. Each bar shows the percentage used and the time until it resets. |
 | `SLOW DOWN` | Shown when the 5-hour window is at 80% or more. |
-| `$31.23 eq` | Estimated cost of the **current session** at API list prices (Claude Code's `cost.total_cost_usd`). It starts at $0 with every new session, including after `/clear`; it is **not** a daily or weekly total. **Not what you are billed**: on a subscription nothing is billed per token, hence "eq" (equivalent). With Opus it carries `(~2x)`, a reminder that Opus costs about twice as much per token as Sonnet. |
-| `613K/1M ▓▓▓▓░░ 61%` | Context window: tokens used out of the window size, plus a bar. At 40% you get a dim `/compact soon`, at 60% `/compact`, at 80% `/clear`. Pushed to the right edge of the line. |
+| `$31.23 eq` | Estimated cost of the **current session** at API list prices (Claude Code's `cost.total_cost_usd`). It starts at $0 with every new session, including after `/clear`; it is **not** a daily or weekly total. **Not what you are billed**: on a subscription nothing is billed per token, hence "eq" (equivalent). |
+| `613K/1M ▓▓▓▓░░ 61%` | Context window: tokens used out of the window size, plus a bar. At 40% you get a dim `/compact soon`, at 60% `/compact`, and from 80% the same `/compact` in red (`/compact` keeps a summary of the conversation; the urgency is carried by the color). Pushed to the right edge of the line. |
 
 **Line 2 — the session**
 
@@ -191,7 +192,7 @@ Restart the terminal afterwards. Use the font's family name as your system shows
 ### 3. Check it
 
 ```bash
-python3 -c "print('      ')"
+python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf463 \uf4e3 \uf439')"
 ```
 
 You should see a tag, a folder, a branch, a chip, a gauge, an hourglass and a card. If you see boxes or question marks, the font is not active in that terminal: re-check step 2, or use `STATUSLINE_ICONS=0`.
@@ -200,7 +201,7 @@ If the icons render but look slightly off, or the end of line 1 is clipped, see 
 
 ## Configuration
 
-All settings are **optional environment variables**. Put them in front of the command in `~/.claude/settings.json`:
+All settings are **optional environment variables**. A value that is not a number (for example `STATUSLINE_MARGIN=abc`) is ignored and the default is used. Put them in front of the command in `~/.claude/settings.json`:
 
 ```json
 {
@@ -232,18 +233,19 @@ These are constants at the top of `statusline.py`, meant to be edited directly:
 | Constant | What it controls |
 |---|---|
 | `BAR_5H`, `BAR_WIDTH` | Width in cells of the 5-hour bar (default 10) and of the 7d, spend and context bars (default 6). |
+| `GIT_TIMEOUT`, `MAX_COLUMNS` | Seconds each git call may take (1) and the widest terminal the layout will assume (1000). |
 | `ICON` / `TEXT` | The icon (Nerd Font code point) and the plain-text replacement used for each field. |
 | `TONE` | Text colors. Plain ANSI numbers follow your terminal theme, `38;5;N` values are fixed 256-color. |
 | `BG` | Background colors of the filled part of a bar. |
-| `level_tone(p, warn, crit)` | The thresholds: green below `warn` (50 for text, 60 for bars), amber from `warn`, red from `crit` (80). |
+| `level_tone(p, warn, crit)` | The thresholds: green below `warn` (60), amber from `warn`, red from `crit` (80). Text and bars use the same two points. |
 
 ## Colors and thresholds
 
 | State | Color | Applies to |
 |---|---|---|
 | healthy | green | percentages and bars below the warning level |
-| warning | yellow | 50-79% for percentages, 60-79% for bars; `/compact`; `Opus`; effort `high`, `xhigh`, `max`; the `(~2x)` note |
-| critical | red | 80% and above; `/clear`; `SLOW DOWN`; the usage icon turns red while the 5-hour window is critical |
+| warning | yellow | 60-79%, for both the percentage text and the bars; `/compact`; `Opus`; effort `high`, `xhigh`, `max` |
+| critical | red | 80% and above; the red `/compact`; `SLOW DOWN`; the usage icon turns red while the 5-hour window is critical |
 | fast mode | orange | the rocket and the word `fast` |
 | empty part of a bar | gray | background |
 
@@ -287,6 +289,18 @@ Add `STATUSLINE_ICONS=0` in front to see the plain-text version, and `COLUMNS=14
 | No session name | None has been set yet. Use `claude --name "..."` or `/rename`. |
 | Nothing shows up at all | Run `python3 examples/demo.py \| python3 statusline.py`. If that prints, the script is fine and the problem is the `statusLine` block in `settings.json`. |
 
+## Versioning
+
+Releases follow [Semantic Versioning](https://semver.org). While the major version is 0, the output and the configuration may still change between minor versions. Every change is listed in the [CHANGELOG](CHANGELOG.md).
+
+Check which version you have installed:
+
+```bash
+python3 ~/.claude/statusline.py --version
+```
+
+The installation prompt downloads the script from the latest release. To install a specific release, use its tag in the download URL instead, for example `https://github.com/lbecjx/claude-code-dashboard-term/releases/download/v0.2.0/statusline.py`. Each release is published at <https://github.com/lbecjx/claude-code-dashboard-term/releases> with its notes from the CHANGELOG and `statusline.py` and `demo.py` attached. Pushing a `v*` tag creates it, after checking that the tag, the `__version__` in the script and the newest CHANGELOG entry agree.
+
 ## Issues and contributions
 
 Found a bug, a terminal where it looks wrong, or a provider whose data it does not handle? Open an issue at <https://github.com/lbecjx/claude-code-dashboard-term/issues>, ideally with the output of `python3 examples/demo.py | python3 statusline.py` and your terminal and font.
@@ -301,6 +315,7 @@ Found a bug, a terminal where it looks wrong, or a provider whose data it does n
 - The script reads **only** the JSON on its standard input and writes **only** to standard output.
 - It makes no network connections and writes no files.
 - It runs `git` locally, with a one-second timeout each, to learn whether you are in a repository (`git rev-parse --is-inside-work-tree`), the branch (`git branch --show-current`) and the user (`git config user.name`). Set `STATUSLINE_GIT_USER=0` to skip the last one.
+- Whatever Claude Code sends, a missing, wrong-typed or absurd value is ignored and the script never prints a traceback. Text that comes from the payload or from git (names, folders, branches) has control characters, line breaks and terminal escape sequences removed before it is printed.
 - Screenshots of the status line can show your git user name and branch. Turn the user off before sharing one.
 
 As with any script you run on every refresh, read it before installing it. It is a single short file.

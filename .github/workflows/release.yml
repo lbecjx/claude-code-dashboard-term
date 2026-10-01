@@ -1,0 +1,44 @@
+# claude-code-dashboard-term — Release: when a version tag (v*) is pushed, check it and create the GitHub release.
+# Copyright (C) 2026  lbecjx. GPL-3.0-or-later, see LICENSE.
+#
+# The release is created with the GitHub CLI that ships on the runner, so no third-party action
+# ever receives the token that is allowed to write.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed only to create the release
+    steps:
+      # Actions are pinned to a commit SHA; the comment says which release it is.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
+
+      - name: Tag, script version and CHANGELOG agree
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python .github/scripts/release_check.py "$TAG" --notes release-notes.md
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          python -m py_compile statusline.py examples/demo.py
+          python examples/demo.py | COLUMNS=140 python statusline.py > out.txt 2> err.txt
+          test -s out.txt
+          test ! -s err.txt
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" statusline.py examples/demo.py --title "$TAG" --notes-file release-notes.md --verify-tag
