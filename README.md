@@ -25,9 +25,18 @@ PHASE 1: inspect (read-only, no questions)
    If it does anything else, stop and tell me.
 4. Decide whether my terminal needs the Nerd Font icons. If it is Ghostty, it does not: skip every font step (7 and the
    question in 9), do not ask me anything about fonts and do not install any font. Most other terminals do, with the
-   caveats in step 7. My font must
-   stay exactly as it is unless I choose a new one myself in step 7: the goal is to ADD the icons, not to replace my font. Write down my current terminal
-   font setting (name and size) now, before anything is changed, so it can be restored.
+   caveats in step 7. My font must stay exactly as it is unless I choose a new one myself: the goal is to ADD the
+   icons, not to replace my font. Write down my current terminal font setting (name and size) now, before anything
+   is changed, so it can be restored.
+   If my terminal is macOS Terminal, I choose the font now, in this phase, so that the plan already names it:
+   a. Open in my browser the preview of each font you will offer, with `open https://www.programmingfonts.org/#<id>`
+      (the ids are the "Full Preview" links of each font at https://www.nerdfonts.com/font-downloads: for example
+      cascadia-code, meslo, jetbrainsmono, firacode, hack). A question widget cannot draw a font and a text list shows
+      me nothing, so I must be able to see them for real before choosing.
+   b. Then ask me ONE selection question with explicit options, never free text: keep my current font and use plain
+      text (STATUSLINE_ICONS=0), "CaskaydiaCove Nerd Font" (Cascadia Code with the icons) marked as the recommended
+      one, and one or two more, including one that resembles my current font if there is one. The question tool adds
+      an "Other" option for any font I name myself. Do not choose for me: the recommendation is only a suggestion.
 
 Then give me ONE plan and ask for ONE approval. The plan lists everything you will change: each file you will create
 or modify with its timestamped backup path (for example ~/.claude/statusline.py.bak-YYYYMMDD-HHMMSS), any package
@@ -40,15 +49,14 @@ PHASE 2: do it (after my OK, without asking again)
 7. Icons need a font that has them, and I do NOT want my terminal font replaced. What to do depends on my terminal:
    - Ghostty: this whole step does not apply; it already has the icons.
    - macOS Terminal: it only draws the characters of the profile font, so a symbols font would change nothing and real
-     icons need a complete Nerd Font as the profile font, which changes the font I see. Do not choose one for me: the
-     recommended font below is only a suggestion until I confirm it. Ask me, once, to choose: (a) keep my current font and use plain text
-     (STATUSLINE_ICONS=0), or (b) pick a complete Nerd Font. For (b), list 6 to 8 of them, starting with
-     CaskaydiaCove Nerd Font Mono (Homebrew cask font-caskaydia-cove-nerd-font; it is Cascadia Code with the icons)
-     as the recommended one, and including one that resembles my current font if there is one, each with its preview from https://www.nerdfonts.com/font-downloads
-     (every font there has a live preview), and let me choose or name another. Install only the one I pick (Homebrew
-     casks are named font-<name>-nerd-font; `brew search nerd-font` lists them), set it as the font of my current
-     profile only, keep my current font size, and tell me my original font and exactly how to go back. Offer to
-     restore it if I do not like the result.
+     icons need a complete Nerd Font as the profile font, which changes the font I see. Apply the choice I made in
+     step 4. If I chose plain text, add STATUSLINE_ICONS=0 to the command and install nothing. If I chose a font,
+     install only that one (Homebrew casks are named font-<name>-nerd-font; `brew search nerd-font` lists them) and use
+     its regular variant (for example "CaskaydiaCove Nerd Font", PostScript name CaskaydiaCoveNF-Regular), not the
+     "Mono" variant, which shrinks every icon to fit one cell and makes them look tiny. Check the exact font name the
+     system reports after installing, set it as the font of my current profile only, keep my current font size, and tell
+     me my original font and exactly how to go back. Offer to restore it if I do not like the result. If the icons
+     then overlap the text, switch to the Mono variant or set STATUSLINE_ICON_CELLS=2.
    - Terminals that accept a font list (Windows Terminal, VS Code): install only the "Symbols Nerd Font" (the
      symbols-only font, not a complete Nerd Font) with the package manager of my system (Homebrew:
      `brew install --cask font-symbols-only-nerd-font`) or from
@@ -63,7 +71,9 @@ PHASE 2: do it (after my OK, without asking again)
    https://github.com/lbecjx/claude-code-dashboard-term/releases/latest/download/demo.py to a temporary file and run
      python3 /tmp/demo.py | COLUMNS=140 python3 ~/.claude/statusline.py
    Show me the output.
-9. You cannot see my screen, so ask me this one question: print this line and ask whether I see icons or boxes.
+9. You cannot see my screen, so ask me this one question. The icon characters cannot be shown in your own text, so
+   tell me to run this line myself by typing `! ` (an exclamation mark and a space) before it, and ask whether I see
+   icons or boxes, and whether the icons are a readable size.
    python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf463 \uf4e3 \uf439')"
    Skip this question if my terminal is Ghostty or you already chose plain text. A new terminal window may be needed for a newly installed font to be picked up. If I still see boxes, question marks or nothing,
    set STATUSLINE_ICONS=0 in the command ("command": "STATUSLINE_ICONS=0 python3 ~/.claude/statusline.py").
@@ -205,7 +215,7 @@ If your terminal has no font list (macOS Terminal), do not change your font: use
 
 ### Alternative: a complete Nerd Font as your terminal font
 
-A complete Nerd Font is a regular font with the icons patched in, so using it **changes the font you see**. Pick one from the [download page](https://www.nerdfonts.com/font-downloads), where every font has a live preview (use the **v3.x** release; `CaskaydiaCove Nerd Font Mono` is Cascadia Code with the icons), install it, then select it in your terminal's font menu (macOS Terminal: Settings → Profiles → Text → Font; iTerm2: Settings → Profiles → Text → Font; GNOME Terminal: Preferences → your profile → Text → Custom font) and restart the terminal.
+A complete Nerd Font is a regular font with the icons patched in, so using it **changes the font you see**. Pick one from the [download page](https://www.nerdfonts.com/font-downloads), where every font has a live preview (use the **v3.x** release; `CaskaydiaCove Nerd Font` is Cascadia Code with the icons; use its regular variant, because the `Mono` variant makes the icons smaller), install it, then select it in your terminal's font menu (macOS Terminal: Settings → Profiles → Text → Font; iTerm2: Settings → Profiles → Text → Font; GNOME Terminal: Preferences → your profile → Text → Custom font) and restart the terminal.
 
 ```bash
 brew install --cask font-caskaydia-cove-nerd-font   # macOS; every Nerd Font has its own cask
@@ -305,7 +315,8 @@ Add `STATUSLINE_ICONS=0` in front to see the plain-text version, and `COLUMNS=14
 |---|---|
 | Boxes or `?` instead of icons | The terminal has no font with the Nerd Font icons. See [Icons and Nerd Fonts](#icons-and-nerd-fonts), or set `STATUSLINE_ICONS=0`. |
 | The end of line 1 is cut with `…` | Claude Code reserves space on the right. Raise `STATUSLINE_MARGIN`. |
-| Icons overlap the text | Your terminal draws icons two cells wide. Use the `Mono` variant of the symbols font (`SymbolsNerdFontMono-Regular.ttf`, in the downloaded zip), or set `STATUSLINE_ICON_CELLS=2`. |
+| Icons overlap the text | Your terminal draws icons wider than one cell. Use the `Mono` variant of your Nerd Font (for a symbols font, `SymbolsNerdFontMono-Regular.ttf` in the downloaded zip), or set `STATUSLINE_ICON_CELLS=2`. |
+| Icons look tiny | You are using a `Mono` variant, which shrinks every icon to fit one cell. Switch to the regular variant of the same Nerd Font (for example `CaskaydiaCove Nerd Font` instead of `CaskaydiaCove Nerd Font Mono`). |
 | No `5h` / `7d` bars | They only exist with a Pro / Max subscription, and only after the first response of a session. With Bedrock or an API key they never exist. |
 | No branch and no user | You are not inside a git repository, or `git` is not installed. This is intentional. |
 | No session name | None has been set yet. Use `claude --name "..."` or `/rename`. |
