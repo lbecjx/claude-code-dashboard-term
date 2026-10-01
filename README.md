@@ -40,7 +40,7 @@ Install the "claude-code-dashboard-term" status line for me, step by step. Do no
    30 seconds, without restarting Claude Code.
 ````
 
-> The prompt downloads from <https://github.com/lbecjx/claude-code-dashboard-term>. If you cloned or forked the repo somewhere else, replace the URL, or tell Claude to copy `statusline.py` from your local clone instead.
+> The prompt downloads `statusline.py` and `demo.py` from the latest release of <https://github.com/lbecjx/claude-code-dashboard-term/releases>. If you forked the repo, replace `lbecjx/claude-code-dashboard-term` in the two URLs with your own (your fork needs a release of its own), or tell Claude to copy `statusline.py` from your local clone instead.
 
 ## Manual install
 
