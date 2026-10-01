@@ -8,52 +8,6 @@ A compact, colored **status line for [Claude Code](https://code.claude.com)**. O
 
 *The status line in [Ghostty](https://ghostty.org), mid-session. Line 1: model and effort, the 5-hour and 7-day usage bars, estimated cost, and the context window pushed to the right. Line 2: session name, folder, git branch and git user. The bars are drawn with colored cell backgrounds, with their label written on top.*
 
-- **No dependencies.** One file, Python 3 standard library only.
-- **No network.** It only reads the JSON Claude Code sends on stdin and, optionally, asks local `git` for the branch and user.
-- **Hides what does not apply.** No usage limits from your provider? The usage group disappears. Not in a git repo? No branch, no user.
-- **Fast.** A run takes a few tens of milliseconds.
-
-## Contents
-
-- [What each part means](#what-each-part-means)
-- [Get started with Claude](#get-started-with-claude)
-- [Manual install](#manual-install)
-- [Icons and Nerd Fonts](#icons-and-nerd-fonts)
-- [Configuration](#configuration)
-- [Colors and thresholds](#colors-and-thresholds)
-- [Providers](#providers)
-- [Try it without a live session](#try-it-without-a-live-session)
-- [Troubleshooting](#troubleshooting)
-- [Issues and contributions](#issues-and-contributions)
-- [Uninstall](#uninstall)
-- [Privacy and safety](#privacy-and-safety)
-- [Attribution and licenses](#attribution-and-licenses)
-- [License](#license)
-
-## What each part means
-
-**Line 1 — the agent**
-
-| Part | Meaning |
-|---|---|
-| `Sonnet 5.5 medium` | Model and reasoning effort. The effort is gray for `low` and `medium`, and **yellow** for `high`, `xhigh` and `max`, because those use your usage faster. `Opus` is yellow too. A Bedrock model id such as `us.anthropic.claude-sonnet-5-5-20260101-v1:0` is shortened to `Sonnet 5.5`. |
-| `fast` | Shown only while Claude Code's fast mode is on. |
-| gauge icon + bars | The **usage group**: one icon, then the bars that exist. `5h` and `7d` are your subscription windows; `spend` is a gateway spend limit. Each bar shows the percentage used and the time until it resets. |
-| `SLOW DOWN` | Shown when the 5-hour window is at 80% or more. |
-| `$31.23 eq` | Estimated cost of the **current session** at API list prices (Claude Code's `cost.total_cost_usd`). It starts at $0 with every new session, including after `/clear`; it is **not** a daily or weekly total. **Not what you are billed**: on a subscription nothing is billed per token, hence "eq" (equivalent). With Opus it carries `(~2x)`, a reminder that Opus costs about twice as much per token as Sonnet. |
-| `613K/1M ▓▓▓▓░░ 61%` | Context window: tokens used out of the window size, plus a bar. At 40% you get a dim `/compact soon`, at 60% `/compact`, at 80% `/clear`. Pushed to the right edge of the line. |
-
-**Line 2 — the session**
-
-| Part | Meaning |
-|---|---|
-| tag | Session name (set with `claude --name` or `/rename`, otherwise the AI-generated title). Missing until one exists. |
-| folder | Name of the current directory. |
-| branch | Current git branch. **Only inside a git repository.** |
-| person | `git config user.name`. **Only inside a git repository**, and you can turn it off. |
-
-**Line 3 — tokens (off by default)**: `I` fresh input, `O` output, `R` cache read, `W` cache write, for the last API call. Turn it on with `STATUSLINE_TOKENS=1`.
-
 ## Get started with Claude
 
 The fastest way: paste the prompt below into Claude Code and let it do the install. It makes a backup, shows you the script, and asks before it touches your settings.
@@ -120,6 +74,55 @@ Requirements: Python 3 (developed and tested with 3.14), and a Claude Code recen
 4. **If the icons look wrong** (boxes or `?`), follow [Icons and Nerd Fonts](#icons-and-nerd-fonts) or switch to plain text with `STATUSLINE_ICONS=0`.
 
 > Only tested on macOS so far. It should work anywhere Claude Code and Python 3 run, but Windows has not been tried: use `python` instead of `python3` there if that is what your system provides.
+
+## Contents
+
+- [Get started with Claude](#get-started-with-claude)
+- [Manual install](#manual-install)
+- [At a glance](#at-a-glance)
+- [What each part means](#what-each-part-means)
+- [Icons and Nerd Fonts](#icons-and-nerd-fonts)
+- [Configuration](#configuration)
+- [Colors and thresholds](#colors-and-thresholds)
+- [Providers](#providers)
+- [Try it without a live session](#try-it-without-a-live-session)
+- [Troubleshooting](#troubleshooting)
+- [Issues and contributions](#issues-and-contributions)
+- [Uninstall](#uninstall)
+- [Privacy and safety](#privacy-and-safety)
+- [Attribution and licenses](#attribution-and-licenses)
+- [License](#license)
+
+## At a glance
+
+- **No dependencies.** One file, Python 3 standard library only.
+- **No network.** It only reads the JSON Claude Code sends on stdin and, optionally, asks local `git` for the branch and user.
+- **Hides what does not apply.** No usage limits from your provider? The usage group disappears. Not in a git repo? No branch, no user.
+- **Fast.** A run takes a few tens of milliseconds.
+
+## What each part means
+
+**Line 1 — the agent**
+
+| Part | Meaning |
+|---|---|
+| `Sonnet 5.5 medium` | Model and reasoning effort. The effort is gray for `low` and `medium`, and **yellow** for `high`, `xhigh` and `max`, because those use your usage faster. `Opus` is yellow too. A Bedrock model id such as `us.anthropic.claude-sonnet-5-5-20260101-v1:0` is shortened to `Sonnet 5.5`. |
+| `fast` | Shown only while Claude Code's fast mode is on. |
+| gauge icon + bars | The **usage group**: one icon, then the bars that exist. `5h` and `7d` are your subscription windows; `spend` is a gateway spend limit. Each bar shows the percentage used and the time until it resets. |
+| `SLOW DOWN` | Shown when the 5-hour window is at 80% or more. |
+| `$31.23 eq` | Estimated cost of the **current session** at API list prices (Claude Code's `cost.total_cost_usd`). It starts at $0 with every new session, including after `/clear`; it is **not** a daily or weekly total. **Not what you are billed**: on a subscription nothing is billed per token, hence "eq" (equivalent). With Opus it carries `(~2x)`, a reminder that Opus costs about twice as much per token as Sonnet. |
+| `613K/1M ▓▓▓▓░░ 61%` | Context window: tokens used out of the window size, plus a bar. At 40% you get a dim `/compact soon`, at 60% `/compact`, at 80% `/clear`. Pushed to the right edge of the line. |
+
+**Line 2 — the session**
+
+| Part | Meaning |
+|---|---|
+| tag | Session name (set with `claude --name` or `/rename`, otherwise the AI-generated title). Missing until one exists. |
+| folder | Name of the current directory. |
+| branch | Current git branch. **Only inside a git repository.** |
+| person | `git config user.name`. **Only inside a git repository**, and you can turn it off. |
+
+**Line 3 — tokens (off by default)**: `I` fresh input, `O` output, `R` cache read, `W` cache write, for the last API call. Turn it on with `STATUSLINE_TOKENS=1`.
 
 ## Icons and Nerd Fonts
 
