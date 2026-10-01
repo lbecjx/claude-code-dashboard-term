@@ -10,34 +10,68 @@ A compact, colored **status line for [Claude Code](https://code.claude.com)**. O
 
 ## Get started with Claude
 
-The fastest way: paste the prompt below into Claude Code and let it do the install. It makes a backup, shows you the script, and asks before it touches your settings.
+The fastest way: paste the prompt below into Claude Code and let it do the whole install. It inspects your setup, shows you **one plan** listing everything it will change (including the icon font, when needed), and after a single OK it does all of it, with a backup of every file and setting it touches. Your terminal font is never replaced unless you pick a new one yourself, from a list with previews. Claude Code may still ask you to allow each command it runs; just answer OK.
 
 ````text
-Install the "claude-code-dashboard-term" status line for me, step by step. Do not change anything I have not approved.
+Install the "claude-code-dashboard-term" status line for me. Do all of it yourself: I only want to read your questions and answer OK. Work in two phases.
 
-1. Check that `python3` is available (on Windows, `python`). Tell me the version.
-2. Look at my existing Claude Code status line setup: read ~/.claude/settings.json and check whether
-   there is already a "statusLine" entry or a ~/.claude/statusline.py file. If either exists, make a
-   timestamped backup of it (for example ~/.claude/statusline.py.bak-YYYYMMDD-HHMMSS) and tell me where it is.
-3. Download the script from
+PHASE 1: inspect (read-only, no questions)
+1. Check that `python3` is available (on Windows, `python`) and that it is 3.9 or newer.
+2. Detect my operating system and my terminal (for example from $TERM_PROGRAM, $WT_SESSION or the parent process).
+   Read ~/.claude/settings.json and check whether there is already a "statusLine" entry or a ~/.claude/statusline.py file.
+3. Download the script to a temporary file from
    https://github.com/lbecjx/claude-code-dashboard-term/releases/latest/download/statusline.py
-   to ~/.claude/statusline.py. Before installing it, show me what the file does (it should only read stdin,
-   print to stdout and call local `git`; it must not use the network). Wait for my OK.
-4. Show me the exact "statusLine" block you plan to add to ~/.claude/settings.json, merged into the existing
-   JSON without removing anything else, and wait for my OK:
-     "statusLine": { "type": "command", "command": "python3 ~/.claude/statusline.py", "refreshInterval": 30 }
-5. Test the script with a sample payload. Download demo.py from the same release
-   (https://github.com/lbecjx/claude-code-dashboard-term/releases/latest/download/demo.py) to a temporary file,
-   show me what it does (it only prints a JSON sample), then run:
+   and read it yourself. It must only read stdin, print to stdout and call local `git`, with no network access.
+   If it does anything else, stop and tell me.
+4. Decide whether my terminal needs the Nerd Font icons. If it is Ghostty, it does not: skip every font step (7 and the
+   question in 9), do not ask me anything about fonts and do not install any font. Most other terminals do, with the
+   caveats in step 7. My font must
+   stay exactly as it is unless I choose a new one myself in step 7: the goal is to ADD the icons, not to replace my font. Write down my current terminal
+   font setting (name and size) now, before anything is changed, so it can be restored.
+
+Then give me ONE plan and ask for ONE approval. The plan lists everything you will change: each file you will create
+or modify with its timestamped backup path (for example ~/.claude/statusline.py.bak-YYYYMMDD-HHMMSS), any package
+you will install, any terminal setting you will change, and the exact block you will add to settings.json:
+  "statusLine": { "type": "command", "command": "python3 ~/.claude/statusline.py", "refreshInterval": 30 }
+
+PHASE 2: do it (after my OK, without asking again)
+5. Make the backups, then install the script at ~/.claude/statusline.py.
+6. Merge the "statusLine" block into ~/.claude/settings.json without removing anything else.
+7. Icons need a font that has them, and I do NOT want my terminal font replaced. What to do depends on my terminal:
+   - Ghostty: this whole step does not apply; it already has the icons.
+   - macOS Terminal: it only draws the characters of the profile font, so a symbols font would change nothing and real
+     icons need a complete Nerd Font as the profile font, which changes the font I see. Do not choose one for me: the
+     recommended font below is only a suggestion until I confirm it. Ask me, once, to choose: (a) keep my current font and use plain text
+     (STATUSLINE_ICONS=0), or (b) pick a complete Nerd Font. For (b), list 6 to 8 of them, starting with
+     CaskaydiaCove Nerd Font Mono (Homebrew cask font-caskaydia-cove-nerd-font; it is Cascadia Code with the icons)
+     as the recommended one, and including one that resembles my current font if there is one, each with its preview from https://www.nerdfonts.com/font-downloads
+     (every font there has a live preview), and let me choose or name another. Install only the one I pick (Homebrew
+     casks are named font-<name>-nerd-font; `brew search nerd-font` lists them), set it as the font of my current
+     profile only, keep my current font size, and tell me my original font and exactly how to go back. Offer to
+     restore it if I do not like the result.
+   - Terminals that accept a font list (Windows Terminal, VS Code): install only the "Symbols Nerd Font" (the
+     symbols-only font, not a complete Nerd Font) with the package manager of my system (Homebrew:
+     `brew install --cask font-symbols-only-nerd-font`) or from
+     https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip, and add it as a
+     fallback entry AFTER my current font, never replacing it. Include that setting in the plan.
+   - Any other terminal: install the symbols font, open a new window and check; if the icons are boxes, do not switch
+     my font: use STATUSLINE_ICONS=0 and tell me.
+   Unless I picked a new font myself in the macOS Terminal option, my font setting must end exactly as it was: if you
+   changed it at all (even temporarily, for a test), restore the value you wrote down in step 4, check that it was
+   restored, and tell me.
+8. Test the script: download demo.py from
+   https://github.com/lbecjx/claude-code-dashboard-term/releases/latest/download/demo.py to a temporary file and run
      python3 /tmp/demo.py | COLUMNS=140 python3 ~/.claude/statusline.py
-   and show me the output.
-6. Ask me whether my terminal shows Nerd Font icons. Print this line and ask what I see:
-     python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf463 \uf4e3 \uf439')"
-   If I see boxes, question marks or nothing, set STATUSLINE_ICONS=0 in the command
-   ("command": "STATUSLINE_ICONS=0 python3 ~/.claude/statusline.py") and offer to walk me through installing
-   a Nerd Font (see the "Icons and Nerd Fonts" section of the project README).
-7. Tell me how to undo everything (restore the backups) and that the status line updates within about
-   30 seconds, without restarting Claude Code.
+   Show me the output.
+9. You cannot see my screen, so ask me this one question: print this line and ask whether I see icons or boxes.
+   python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf463 \uf4e3 \uf439')"
+   Skip this question if my terminal is Ghostty or you already chose plain text. A new terminal window may be needed for a newly installed font to be picked up. If I still see boxes, question marks or nothing,
+   set STATUSLINE_ICONS=0 in the command ("command": "STATUSLINE_ICONS=0 python3 ~/.claude/statusline.py").
+10. Finish with a short summary of what you changed, how to undo it (restore the backups), and that the status line
+    updates within about 30 seconds, without restarting Claude Code.
+
+Rules: change nothing that is not in the plan. Never leave my terminal font different from how you found it, except for a complete Nerd Font that I picked myself in step 7. Do not use sudo without telling me first. If a step fails, try to
+fix it once; if it still fails, stop and explain.
 ````
 
 > The prompt downloads `statusline.py` and `demo.py` from the latest release of <https://github.com/lbecjx/claude-code-dashboard-term/releases>. If you forked the repo, replace `lbecjx/claude-code-dashboard-term` in the two URLs with your own (your fork needs a release of its own), or tell Claude to copy `statusline.py` from your local clone instead.
@@ -139,70 +173,51 @@ The icons are [Octicons](https://primer.style/foundations/icons) (GitHub's icon 
 | Your terminal | What to do |
 |---|---|
 | **[Ghostty](https://ghostty.org)** | Nothing. It embeds the Nerd Font symbols and falls back to them for any missing character. |
-| **Anything else** (macOS Terminal, iTerm2, Windows Terminal, VS Code, GNOME Terminal, ...) | Install a Nerd Font **v3 or newer** and select it as your terminal font, as described below. |
+| **macOS Terminal** | It only draws the characters of the profile font and does not fall back to another font, so a symbols font does not help. Choose a complete Nerd Font as the profile font (see the alternative below, with a preview of each one), which changes your font, or keep your font and use plain text with `STATUSLINE_ICONS=0`. |
+| **Windows Terminal, VS Code** | Install the **Symbols Nerd Font** (symbols only) and add it as a fallback after your font. Your own font stays, as described below. |
+| **Anything else** (iTerm2, GNOME Terminal, ...) | Install the Symbols Nerd Font and open a new window. If the icons show, nothing else is needed; if they are boxes, use plain text or the alternative below. |
 | Do not want to install anything | Use plain text: `STATUSLINE_ICONS=0`. |
 
-### 1. Install a Nerd Font
+### 1. Install the symbols font
 
-Pick any font from the [download page](https://www.nerdfonts.com/font-downloads). `JetBrainsMono Nerd Font` is a good default. Use the **v3.x** release.
+The **Symbols Nerd Font** contains only the icons, so it does not replace any letter of your font. Some terminals use an installed font for the characters their own font does not have, so after installing it and opening a new window the icons appear without changing any setting. macOS Terminal does not: it only draws the profile font.
 
 **macOS (Homebrew)**
 
 ```bash
-brew install --cask font-jetbrains-mono-nerd-font
+brew install --cask font-symbols-only-nerd-font
 ```
 
-Every Nerd Font has its own cask (`brew search nerd-font` lists them). Without Homebrew, download the `.zip` from the download page, open the `.ttf` files and click *Install Font*.
+**Windows, Linux, or macOS without Homebrew**
 
-**Windows**
+Download <https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip> and unzip it. On Windows, select the `.ttf` files, right-click and choose *Install* (or *Install for all users*). On macOS, open the `.ttf` files and click *Install Font*. On Linux, copy them into `~/.local/share/fonts` and run `fc-cache -fv`.
 
-The Nerd Fonts project documents two community package managers (they are *unofficial* repositories):
+### 2. If you still see boxes
 
-```powershell
-# Chocolatey
-choco install nerd-fonts-hack
-
-# Scoop
-scoop bucket add nerd-fonts
-scoop install Hack-NF
-```
-
-Or download the `.zip` from the download page, unzip it, select the `.ttf` files, right-click and choose *Install* (or *Install for all users*).
-
-**Linux**
-
-Nerd Fonts ships an installer script that downloads the font release you ask for (see the Nerd Fonts README for its options):
-
-```bash
-curl -s https://raw.githubusercontent.com/ryanoasis/nerd-fonts/master/install.sh -o install.sh
-chmod u+x install.sh
-./install.sh list            # shows the available font names
-./install.sh install JetBrainsMono
-```
-
-The Nerd Fonts README also lists Homebrew casks for Linux. Or copy the `.ttf` files into `~/.local/share/fonts` and run `fc-cache -fv`.
-
-### 2. Select the font in your terminal
-
-Installing a font is not enough, you must choose it. Menu names change between versions, so treat these as a map rather than exact steps:
+Only if the icons still do not show in a new window, add the symbols font as a **fallback after your current font**, without removing it. Terminals that accept a list of fonts can do it:
 
 | Terminal | Where |
 |---|---|
-| macOS Terminal | Settings → Profiles → Text → Font → Change… |
-| iTerm2 | Settings → Profiles → Text → Font |
-| Windows Terminal | Settings → your profile (or *Defaults*) → Appearance → Font face |
-| VS Code (integrated terminal) | Setting `terminal.integrated.fontFamily`, for example `"JetBrainsMono Nerd Font"` |
-| GNOME Terminal and similar | Preferences → your profile → Text → Custom font |
+| Windows Terminal | Settings → your profile (or *Defaults*) → Appearance → Font face: `Your Font, Symbols Nerd Font` |
+| VS Code (integrated terminal) | Setting `terminal.integrated.fontFamily`, for example `"Your Font, Symbols Nerd Font"` |
 
-Restart the terminal afterwards. Use the font's family name as your system shows it (for example `JetBrainsMono Nerd Font`, or the `Mono` variant if you want every icon to take exactly one cell).
+If your terminal has no font list (macOS Terminal), do not change your font: use plain text with `STATUSLINE_ICONS=0`, or use the alternative below knowing that it replaces your font.
 
-### 3. Check it
+### Alternative: a complete Nerd Font as your terminal font
+
+A complete Nerd Font is a regular font with the icons patched in, so using it **changes the font you see**. Pick one from the [download page](https://www.nerdfonts.com/font-downloads), where every font has a live preview (use the **v3.x** release; `CaskaydiaCove Nerd Font Mono` is Cascadia Code with the icons), install it, then select it in your terminal's font menu (macOS Terminal: Settings → Profiles → Text → Font; iTerm2: Settings → Profiles → Text → Font; GNOME Terminal: Preferences → your profile → Text → Custom font) and restart the terminal.
+
+```bash
+brew install --cask font-caskaydia-cove-nerd-font   # macOS; every Nerd Font has its own cask
+```
+
+### Check it
 
 ```bash
 python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf463 \uf4e3 \uf439')"
 ```
 
-You should see a tag, a folder, a branch, a chip, a gauge, an hourglass and a card. If you see boxes or question marks, the font is not active in that terminal: re-check step 2, or use `STATUSLINE_ICONS=0`.
+You should see a tag, a folder, a branch, a chip, a gauge, an hourglass and a card. If you see boxes or question marks, the symbols font is not being used in that terminal: install it (step 1), open a new window, then try step 2, or use `STATUSLINE_ICONS=0`.
 
 If the icons render but look slightly off, or the end of line 1 is clipped, see [Troubleshooting](#troubleshooting).
 
@@ -288,9 +303,9 @@ Add `STATUSLINE_ICONS=0` in front to see the plain-text version, and `COLUMNS=14
 
 | Symptom | Cause and fix |
 |---|---|
-| Boxes or `?` instead of icons | The terminal font has no Nerd Font glyphs. See [Icons and Nerd Fonts](#icons-and-nerd-fonts), or set `STATUSLINE_ICONS=0`. |
+| Boxes or `?` instead of icons | The terminal has no font with the Nerd Font icons. See [Icons and Nerd Fonts](#icons-and-nerd-fonts), or set `STATUSLINE_ICONS=0`. |
 | The end of line 1 is cut with `…` | Claude Code reserves space on the right. Raise `STATUSLINE_MARGIN`. |
-| Icons overlap the text | Your terminal draws icons two cells wide. Use a `Mono` Nerd Font variant, or set `STATUSLINE_ICON_CELLS=2`. |
+| Icons overlap the text | Your terminal draws icons two cells wide. Use the `Mono` variant of the symbols font (`SymbolsNerdFontMono-Regular.ttf`, in the downloaded zip), or set `STATUSLINE_ICON_CELLS=2`. |
 | No `5h` / `7d` bars | They only exist with a Pro / Max subscription, and only after the first response of a session. With Bedrock or an API key they never exist. |
 | No branch and no user | You are not inside a git repository, or `git` is not installed. This is intentional. |
 | No session name | None has been set yet. Use `claude --name "..."` or `/rename`. |
