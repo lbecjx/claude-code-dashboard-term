@@ -32,7 +32,10 @@ PHASE 1: inspect (read-only, no questions)
    a. Open in my browser the preview of each font you will offer, with `open https://www.programmingfonts.org/#<id>`
       (the ids are the "Full Preview" links of each font at https://www.nerdfonts.com/font-downloads: for example
       cascadia-code, meslo, jetbrainsmono, firacode, hack). A question widget cannot draw a font and a text list shows
-      me nothing, so I must be able to see them for real before choosing.
+      me nothing, so I must be able to see them for real before choosing. Open the recommended font LAST, so that its
+      tab is the one I am looking at when you ask. In the question, say the order of the tabs (for example "tab 1
+      Meslo, tab 2 JetBrainsMono, tab 3 Cascadia") and that these previews show the letters of each font, not the
+      icons, whose size I can only judge once a font is applied.
    b. Then ask me ONE selection question with explicit options, never free text: keep my current font and use plain
       text (STATUSLINE_ICONS=0), "CaskaydiaCove Nerd Font" (Cascadia Code with the icons) marked as the recommended
       one, and one or two more, including one that resembles my current font if there is one. The question tool adds
