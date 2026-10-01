@@ -1,0 +1,55 @@
+# claude-code-dashboard-term — CI: compile and smoke-test the script on every push and pull request.
+# Copyright (C) 2026  lbecjx. GPL-3.0-or-later, see LICENSE.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12", "3.x"]
+    steps:
+      # Actions are pinned to a commit SHA; the comment says which release it is.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Compile
+        run: python -m py_compile statusline.py examples/demo.py .github/scripts/release_check.py
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          # Every demo payload must go through the script: exit 0, some output, nothing on stderr.
+          for flags in "" "--critical" "--opus --fast" "--bedrock" "--spend"; do
+            for icons in 1 0; do
+              python examples/demo.py $flags | STATUSLINE_ICONS=$icons COLUMNS=140 python statusline.py > out.txt 2> err.txt
+              test -s out.txt
+              test ! -s err.txt
+            done
+          done
+          # Unusable input must not crash it either.
+          for input in "" "garbage" "[]" "null"; do
+            printf '%s' "$input" | python statusline.py > /dev/null 2> err.txt
+            test ! -s err.txt
+          done
+
+      - name: --version prints the version in the file
+        shell: bash
+        run: |
+          expected="claude-code-dashboard-term $(sed -n 's/^__version__ = "\(.*\)".*/\1/p' statusline.py)"
+          test "$(python statusline.py --version)" = "$expected"
+
+      - name: Script version and CHANGELOG agree
+        run: python .github/scripts/release_check.py
