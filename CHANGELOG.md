@@ -5,6 +5,11 @@ All notable changes to this project are listed here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the major version is 0, output and
 configuration may still change between minor versions.
 
+## [0.3.1] - 2026-10-08
+
+### Changed
+- While the newest response cannot be measured yet, the speed shows `… tok/s` instead of the previous response's value in red.
+
 ## [0.3.0] - 2026-10-08
 
 ### Added
