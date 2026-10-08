@@ -21,7 +21,7 @@ PHASE 1: inspect (read-only, no questions)
    Read ~/.claude/settings.json and check whether there is already a "statusLine" entry or a ~/.claude/statusline.py file.
 3. Download the script to a temporary file from
    https://github.com/lbecjx/claude-code-dashboard-term/releases/latest/download/statusline.py
-   and read it yourself. It must only read stdin, print to stdout and call local `git`, with no network access.
+   and read it yourself. It must only read stdin and the end of the local transcript file named in `transcript_path` (read-only), print to stdout and call local `git`, with no network access.
    If it does anything else, stop and tell me.
 4. Decide whether my terminal needs the Nerd Font icons. If it is Ghostty, it does not: skip every font step (7 and the
    question in 9), do not ask me anything about fonts and do not install any font. Most other terminals do, with the
@@ -151,7 +151,7 @@ Requirements: Python 3.9 or newer (the CI runs 3.9, 3.12 and the latest 3.x), an
 ## At a glance
 
 - **No dependencies.** One file, Python 3 standard library only.
-- **No network.** It only reads the JSON Claude Code sends on stdin and, optionally, asks local `git` for the branch and user.
+- **No network.** It only reads the JSON Claude Code sends on stdin and the end of your local session transcript (read-only, for the speed), and, optionally, asks local `git` for the branch and user.
 - **Hides what does not apply.** No usage limits from your provider? The usage group disappears. Not in a git repo? No branch, no user.
 - **Fast.** A run takes a few tens of milliseconds.
 
@@ -164,6 +164,7 @@ Requirements: Python 3.9 or newer (the CI runs 3.9, 3.12 and the latest 3.x), an
 | `Sonnet 5.5 medium` | Model and reasoning effort. The effort is gray for `low` and `medium`, and **yellow** for `high`, `xhigh` and `max`, because those use your usage faster. `Opus` is yellow too. A Bedrock model id such as `us.anthropic.claude-sonnet-5-5-20260101-v1:0` is shortened to `Sonnet 5.5`. |
 | `fast` | Shown only while Claude Code's fast mode is on. |
 | gauge icon + bars | The **usage group**: one icon, then the bars that exist. `5h` and `7d` are your subscription windows; `spend` is a gateway spend limit. Each bar shows the percentage used and the time until it resets. |
+| `~125 tok/s` | **Approximate** speed of the last model call, in output tokens per second. It counts the time from the message the call answers (your prompt or a tool result) to the end of its reply, so it **includes the wait for the first token** and understates the real generation speed; time spent running tools is not counted. Claude Code does not report stream timings, so it is computed from the timestamps in the session transcript. Missing until there is a reply, and when the reply is too short a span to measure; turn it off with `STATUSLINE_SPEED=0`. |
 | `SLOW DOWN` | Shown when the 5-hour window is at 80% or more. |
 | `$31.23 eq` | Estimated cost of the **current session** at API list prices (Claude Code's `cost.total_cost_usd`). It starts at $0 with every new session, including after `/clear`; it is **not** a daily or weekly total. **Not what you are billed**: on a subscription nothing is billed per token, hence "eq" (equivalent). |
 | `613K/1M ▓▓▓▓░░ 61%` | Context window: tokens used out of the window size, plus a bar. At 40% you get a dim `/compact soon`, at 60% `/compact`, and from 80% the same `/compact` in red (`/compact` keeps a summary of the conversation; the urgency is carried by the color). Pushed to the right edge of the line. |
@@ -252,6 +253,7 @@ All settings are **optional environment variables**. A value that is not a numbe
 |---|---|---|
 | `STATUSLINE_ICONS` | `1` (on) | `0` replaces every Nerd Font icon with plain text (`→` for reset times, `⚡` for fast mode). Use it if your terminal has no Nerd Font. |
 | `STATUSLINE_GIT_USER` | `1` (on) | `0` hides the git user on line 2. When off, the script does not even call git for it. The user is only ever shown inside a git repository. |
+| `STATUSLINE_SPEED` | `1` (on) | `0` hides the approximate speed of the last model call (`~N tok/s`) and the script does not read the transcript. |
 | `STATUSLINE_TOKENS` | `0` (off) | `1` adds a third line with the last API call's tokens: `I` input, `O` output, `R` cache read, `W` cache write. |
 | `STATUSLINE_FLEX` | `1` (on) | `0` stops pushing the context to the right edge of line 1; it stays next to the first block. Flex also falls back to this by itself when the terminal width is unknown or too small. |
 | `STATUSLINE_MARGIN` | `8` | Cells left free on the right in flex mode. Claude Code reserves part of the row and shows its own notices there. **Raise it** (for example `12`) if the end of line 1 appears cut with `…`. |
@@ -348,7 +350,7 @@ Found a bug, a terminal where it looks wrong, or a provider whose data it does n
 
 ## Privacy and safety
 
-- The script reads **only** the JSON on its standard input and writes **only** to standard output.
+- The script reads the JSON on its standard input and, for the speed, the last 256 KiB of the session transcript file that Claude Code names in `transcript_path` (read-only; set `STATUSLINE_SPEED=0` to skip it). It writes **only** to standard output.
 - It makes no network connections and writes no files.
 - It runs `git` locally, with a one-second timeout each, to learn whether you are in a repository (`git rev-parse --is-inside-work-tree`), the branch (`git branch --show-current`) and the user (`git config user.name`). Set `STATUSLINE_GIT_USER=0` to skip the last one.
 - Whatever Claude Code sends, a missing, wrong-typed or absurd value is ignored and the script never prints a traceback. Text that comes from the payload or from git (names, folders, branches) has control characters, line breaks and terminal escape sequences removed before it is printed.

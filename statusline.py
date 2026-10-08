@@ -9,7 +9,7 @@
 # (at your option) any later version. See LICENSE for the full text.
 """Claude Code status line: reads the session JSON on stdin, prints up to three lines.
 
-  1. AGENT    model + effort, fast mode, usage group (5h / 7d / spend bars), SLOW DOWN, estimated cost,
+  1. AGENT    model + effort, fast mode, speed of the last API call (~N tok/s), usage group (5h / 7d / spend bars), SLOW DOWN, estimated cost,
               and the context window pushed to the right edge (space-between)
   2. SESSION  session name, folder and, only inside a git repo, branch and git user
   3. (opt-in) tokens of the last API call: I / O / R / W
@@ -20,6 +20,7 @@ Usage bars only appear when Claude Code sends the data (Pro/Max limits, or a spe
 Environment variables (all optional; a value that is not a number is ignored and the default is used):
   STATUSLINE_ICONS=0       plain text instead of Nerd Font icons
   STATUSLINE_GIT_USER=0    hide the git user (shown by default, only inside a repo)
+  STATUSLINE_SPEED=0       hide the speed of the last API call (shown by default; reads the end of the local transcript file)
   STATUSLINE_TOKENS=1      add a line with the last call's tokens: I (input) O (output) R (cache read) W (cache write)
   STATUSLINE_FLEX=0        do not push the context to the right edge; keep it next to the first block
   STATUSLINE_MARGIN=N      cells left free on the right in flex mode (default 8, minimum 0). Raise it if the end of line 1 is cut with "…"
@@ -27,9 +28,9 @@ Environment variables (all optional; a value that is not a number is ignored and
 Claude Code exports COLUMNS with the real terminal width, which flex mode uses.
 Run `python3 statusline.py --version` to print the version.
 """
-import json, math, os, re, subprocess, sys, time, unicodedata
+import datetime, json, math, os, re, stat, subprocess, sys, time, unicodedata
 
-__version__ = "0.2.0"   # keep in sync with CHANGELOG.md
+__version__ = "0.3.0"   # keep in sync with CHANGELOG.md
 
 
 def env_int(name, default):
@@ -43,17 +44,22 @@ def env_int(name, default):
 R = "\033[0m"
 # Tone name -> SGR parameters. Plain ANSI numbers follow your terminal theme; "38;5;N" is a fixed 256-color value.
 TONE = {"white": 37, "dim": "38;5;248", "green": "38;5;77", "amber": "38;5;220", "red": 31,
-        "cyan": 36, "bcyan": 96, "orange": "38;5;172", "mute": "38;5;153"}   # mute: light blue for the generic icons
+        "cyan": 36, "bcyan": 96, "orange": "38;5;172", "mute": "38;5;153",   # mute: light blue for the generic icons
+        "faint": "38;5;243"}   # faint: dimmer than dim, for secondary figures such as the speed
 # Background colors for the filled part of a bar (the empty part is always ANSI 100).
 BG = {"green": "48;5;77", "amber": "48;5;220", "red": 41}
 
 ICONS_ON = os.environ.get("STATUSLINE_ICONS", "1") != "0"
+SPEED_ON = os.environ.get("STATUSLINE_SPEED", "1") != "0"
 TOKENS_ON = os.environ.get("STATUSLINE_TOKENS", "0") == "1"
 GIT_USER_ON = os.environ.get("STATUSLINE_GIT_USER", "1") != "0"
 FLEX_ON = os.environ.get("STATUSLINE_FLEX", "1") != "0"
 ICON_CELLS = max(1, env_int("STATUSLINE_ICON_CELLS", 1))
 # Cells left free on the right: the status row has its own padding, and Claude Code shows its notices there.
 MARGIN = max(0, env_int("STATUSLINE_MARGIN", 8))
+MIN_SPEED_SECONDS = 0.5   # a shorter span says nothing about speed (and would give absurd numbers)
+MAX_SPEED = 99999   # tokens per second; above this the timestamps are not trustworthy
+SPEED_TAIL_BYTES = 256 * 1024   # only the end of the transcript is read: it grows with the session and this runs every 30 s
 GIT_TIMEOUT = 1   # seconds each git call may take before it is given up
 MAX_COLUMNS = 1000   # no real terminal is wider; a bogus COLUMNS must not make the padding enormous
 # Variables that would make `git -C <dir>` look at some other repository.
@@ -333,6 +339,90 @@ def model_name(d):
     return " ".join(w.capitalize() for w in words) + (" " + ".".join(nums) if nums else "")
 
 
+def transcript_rows(path):
+    """The JSON objects in the last SPEED_TAIL_BYTES of a transcript file (one per line). A line that does not parse, and
+    the first line when the read starts in the middle of one, are skipped. An unreadable file gives no rows."""
+    try:
+        # O_NONBLOCK: opening a pipe that someone swapped in must not wait for a writer
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
+        with os.fdopen(fd, "rb") as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):   # a pipe or device could block or never end
+                return []
+            start = max(0, f.seek(0, os.SEEK_END) - SPEED_TAIL_BYTES - 1)   # one byte before the window, to see where a line begins
+            f.seek(start)
+            data = f.read(SPEED_TAIL_BYTES + 1)
+    except (OSError, ValueError):
+        return []
+    if start > 0:   # the read began inside a line unless the byte before the window is a line break
+        data = data[1:] if data[:1] == b"\n" else data.partition(b"\n")[2]
+    rows = []
+    for line in data.split(b"\n"):
+        try:
+            row = json.loads(line.decode("utf-8", "replace"))
+        except (ValueError, RecursionError):   # RecursionError: a line nested absurdly deep
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def timestamp(v):
+    """Seconds since the epoch for an ISO 8601 UTC string such as 2026-10-08T06:31:30.461Z, or None.
+    The fraction is normalized to six digits because Python 3.9 only accepts three or six."""
+    if not isinstance(v, str):
+        return None
+    m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)", v)
+    if not m:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(
+            m.group(1) + "." + (m.group(2) or "0").ljust(6, "0")[:6] + m.group(3).replace("Z", "+00:00")).timestamp()
+    except (ValueError, OverflowError, OSError):
+        return None
+
+
+def tokens_per_second(d):
+    """Speed of the last API call: its output tokens divided by the seconds from the row before it (the prompt or the tool
+    result it answers) to its last row, or None. A call written in several rows is counted once by its id. The time
+    includes the wait for the first token, so the speed is understated; time spent running tools is not counted."""
+    path = clean(d.get("transcript_path"))
+    if not path:
+        return None
+    since, call = None, None   # since: time of the newest user or assistant row; call: (start, end, tokens, id)
+    for row in transcript_rows(path):
+        if row.get("isSidechain") is True or row.get("type") not in ("user", "assistant"):
+            continue
+        at = timestamp(row.get("timestamp"))
+        if row.get("type") == "user":
+            since = at
+            continue
+        msg = section(row, "message")
+        out = nonneg(get(msg, "usage", "output_tokens"))
+        if at is None or out is None:
+            continue
+        call_id = clean(msg.get("id"))
+        if not call_id:   # without an id the rows of one call cannot be told apart
+            continue
+        if call and call[3] == call_id:
+            call = (call[0], max(call[1], at), out, call_id)
+        else:
+            call = (since, at, out, call_id)   # start is None when the row before it is unknown: no speed for this call
+        since = at
+    if call is None or call[0] is None or call[2] <= 0 or call[1] - call[0] < MIN_SPEED_SECONDS:
+        return None
+    return call[2] / (call[1] - call[0])
+
+
+def block_speed(d):
+    """Speed of the last API call, rounded once: shown as ~N tok/s, or nothing when it is off, cannot be computed or is
+    not plausible."""
+    if not SPEED_ON:
+        return ""
+    speed = tokens_per_second(d)
+    n = None if speed is None or not math.isfinite(speed) else int(speed + 0.5)
+    return paint(f"~{n} tok/s", "faint") if n and n <= MAX_SPEED else ""
+
+
 def block_model(d):
     model = model_name(d)
     effort = clean(get(d, "effort", "level"))
@@ -340,7 +430,7 @@ def block_model(d):
     effort_txt = paint(effort, "amber" if effort in ("high", "xhigh", "max") else "dim") if effort else ""
     head = model_txt + (" " + effort_txt if model_txt and effort_txt else effort_txt)   # model and effort, joined
     fast_txt = (paint(icon("fast") + " ", "orange") + paint("fast", "orange")) if d.get("fast_mode") is True else ""
-    return join([head, fast_txt, *limits(d), block_cost(d)])
+    return join([head, fast_txt, safe(block_speed, d), *limits(d), block_cost(d)])
 
 
 def block_session(d):
