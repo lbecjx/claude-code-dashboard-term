@@ -5,6 +5,15 @@ All notable changes to this project are listed here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the major version is 0, output and
 configuration may still change between minor versions.
 
+## [0.3.0] - 2026-10-08
+
+### Added
+- Line 1 shows the approximate speed of the last response (`~126 tok/s`) after the model, effort and `fast`: the output tokens of its model calls divided by the time the model spent on them, without the time tools ran. A value that belongs to an earlier response than the newest one is shown in red. It is computed from the timestamps of the session transcript, so it includes the wait for the first token and understates the real speed. `STATUSLINE_SPEED=0` turns it off.
+- `examples/demo.py --speed` writes a sample transcript so the speed can be tried without a live session.
+
+### Changed
+- The script now also reads the end of the local session transcript (`transcript_path`, read-only, last 256 KiB). It still makes no network calls and writes no files.
+
 ## [0.2.0] - 2026-10-01
 
 ### Added

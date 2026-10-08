@@ -13,6 +13,7 @@
     python3 examples/demo.py --opus --fast | python3 statusline.py
     python3 examples/demo.py --bedrock | python3 statusline.py      # no usage limits, long model id
     python3 examples/demo.py --spend | python3 statusline.py        # gateway spend limit
+    python3 examples/demo.py --speed | python3 statusline.py        # writes a sample transcript to a temp file
 
 The payload follows the fields documented at https://code.claude.com/docs/en/statusline.
 Reset times are relative to "now", so the demo always looks current.
@@ -20,7 +21,9 @@ Reset times are relative to "now", so the demo always looks current.
 import json
 import os
 import sys
+import tempfile
 import time
+from datetime import datetime, timedelta, timezone
 
 now = time.time()
 args = set(sys.argv[1:])
@@ -50,5 +53,21 @@ if "--spend" in args:
 if "--bedrock" in args:
     payload["model"] = {"id": "us.anthropic.claude-sonnet-5-5-20260101-v1:0"}
     del payload["rate_limits"]
+
+if "--speed" in args:
+    # One prompt, a tool call written in two rows (same id), its result, and a final answer: 1400 output tokens over
+    # 3.1 + 8 seconds of model time (the 2 seconds the tool ran are not counted), so the status line shows ~126 tok/s.
+    start = datetime.now(timezone.utc) - timedelta(seconds=13)
+    at = lambda seconds: (start + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    rows = [
+        {"type": "user", "timestamp": at(0), "message": {"role": "user", "content": "Sample prompt"}},
+        {"type": "assistant", "timestamp": at(3), "message": {"id": "msg_1", "role": "assistant", "usage": {"output_tokens": 400}}},
+        {"type": "assistant", "timestamp": at(3.1), "message": {"id": "msg_1", "role": "assistant", "usage": {"output_tokens": 400}}},
+        {"type": "user", "timestamp": at(5), "message": {"role": "user", "content": [{"type": "tool_result"}]}},
+        {"type": "assistant", "timestamp": at(13), "message": {"id": "msg_2", "role": "assistant", "usage": {"output_tokens": 1000}}},
+    ]
+    with tempfile.NamedTemporaryFile("w", suffix=".jsonl", prefix="statusline-demo-", delete=False) as f:
+        f.write("\n".join(json.dumps(r) for r in rows) + "\n")
+    payload["transcript_path"] = f.name
 
 json.dump(payload, sys.stdout)

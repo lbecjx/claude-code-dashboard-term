@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           # Every demo payload must go through the script: exit 0, some output, nothing on stderr.
-          for flags in "" "--critical" "--opus --fast" "--bedrock" "--spend"; do
+          for flags in "" "--critical" "--opus --fast" "--bedrock" "--spend" "--speed"; do
             for icons in 1 0; do
               python examples/demo.py $flags | STATUSLINE_ICONS=$icons COLUMNS=140 python statusline.py > out.txt 2> err.txt
               test -s out.txt
@@ -43,6 +43,21 @@ jobs:
           for input in "" "garbage" "[]" "null"; do
             printf '%s' "$input" | python statusline.py > /dev/null 2> err.txt
             test ! -s err.txt
+          done
+
+      - name: Speed (tokens per second)
+        shell: bash
+        run: |
+          # With a transcript the speed shows; STATUSLINE_SPEED=0 hides it.
+          python examples/demo.py --speed | COLUMNS=140 python statusline.py | grep -q 'tok/s'
+          python examples/demo.py --speed | STATUSLINE_SPEED=0 COLUMNS=140 python statusline.py > out.txt
+          if grep -q 'tok/s' out.txt; then echo "STATUSLINE_SPEED=0 still shows the speed"; exit 1; fi
+          # A missing file, a directory, or a file with garbage lines: nothing shown, nothing on stderr, exit 0.
+          printf 'garbage\n[1]\n{"type":"user"}\n' > garbage.jsonl
+          for path in missing.jsonl . garbage.jsonl; do
+            printf '{"transcript_path": "%s"}' "$path" | python statusline.py > out.txt 2> err.txt
+            test ! -s err.txt
+            if grep -q 'tok/s' out.txt; then echo "speed shown for $path"; exit 1; fi
           done
 
       - name: --version prints the version in the file
