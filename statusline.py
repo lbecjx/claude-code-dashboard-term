@@ -9,7 +9,7 @@
 # (at your option) any later version. See LICENSE for the full text.
 """Claude Code status line: reads the session JSON on stdin, prints up to three lines.
 
-  1. AGENT    model + effort, fast mode, speed of the last API call (~N tok/s), usage group (5h / 7d / spend bars), SLOW DOWN, estimated cost,
+  1. AGENT    model + effort, fast mode, speed of the last response (~N tok/s), usage group (5h / 7d / spend bars), SLOW DOWN, estimated cost,
               and the context window pushed to the right edge (space-between)
   2. SESSION  session name, folder and, only inside a git repo, branch and git user
   3. (opt-in) tokens of the last API call: I / O / R / W
@@ -20,7 +20,7 @@ Usage bars only appear when Claude Code sends the data (Pro/Max limits, or a spe
 Environment variables (all optional; a value that is not a number is ignored and the default is used):
   STATUSLINE_ICONS=0       plain text instead of Nerd Font icons
   STATUSLINE_GIT_USER=0    hide the git user (shown by default, only inside a repo)
-  STATUSLINE_SPEED=0       hide the speed of the last API call (shown by default; reads the end of the local transcript file)
+  STATUSLINE_SPEED=0       hide the speed of the last response (shown by default; reads the end of the local transcript file)
   STATUSLINE_TOKENS=1      add a line with the last call's tokens: I (input) O (output) R (cache read) W (cache write)
   STATUSLINE_FLEX=0        do not push the context to the right edge; keep it next to the first block
   STATUSLINE_MARGIN=N      cells left free on the right in flex mode (default 8, minimum 0). Raise it if the end of line 1 is cut with "…"
@@ -382,45 +382,54 @@ def timestamp(v):
 
 
 def tokens_per_second(d):
-    """Speed of the last API call: its output tokens divided by the seconds from the row before it (the prompt or the tool
-    result it answers) to its last row, or None. A call written in several rows is counted once by its id. The time
-    includes the wait for the first token, so the speed is understated; time spent running tools is not counted."""
+    """(speed, stale) for the last response, or None. Speed: the output tokens of its API calls divided by the seconds
+    the model spent on them. Each call is timed from the row before it (the prompt or the tool result it answers) to its last row, so time
+    spent running tools is not counted, but the wait for the first token is, and the speed is understated. A call written
+    in several rows is counted once by its id. When the newest response has no call yet, or cannot be timed or gives an
+    implausible value, the response before it is used and stale is True."""
     path = clean(d.get("transcript_path"))
     if not path:
         return None
-    since, call = None, None   # since: time of the newest user or assistant row; call: (start, end, tokens, id)
+    since, responses, seen = None, [[]], {}   # since: time of the newest user or assistant row
     for row in transcript_rows(path):
         if row.get("isSidechain") is True or row.get("type") not in ("user", "assistant"):
             continue
         at = timestamp(row.get("timestamp"))
+        msg = section(row, "message")
         if row.get("type") == "user":
+            if isinstance(msg.get("content"), str) and row.get("isMeta") is not True:   # a prompt, not a tool result
+                responses.append([])
             since = at
             continue
-        msg = section(row, "message")
         out = nonneg(get(msg, "usage", "output_tokens"))
-        if at is None or out is None:
-            continue
         call_id = clean(msg.get("id"))
-        if not call_id:   # without an id the rows of one call cannot be told apart
-            continue
-        if call and call[3] == call_id:
-            call = (call[0], max(call[1], at), out, call_id)
-        else:
-            call = (since, at, out, call_id)   # start is None when the row before it is unknown: no speed for this call
-        since = at
-    if call is None or call[0] is None or call[2] <= 0 or call[1] - call[0] < MIN_SPEED_SECONDS:
-        return None
-    return call[2] / (call[1] - call[0])
+        if at is not None and out and call_id:   # no id: its rows cannot be grouped; 0 tokens: an error row, not a reply
+            call = seen.get(call_id)   # a later row of a known call extends it, even after a prompt row
+            if call:
+                call[1], call[2] = max(call[1], at), float(out)
+            else:
+                call = seen[call_id] = [since, at, float(out)]   # start None: the row before it is unknown, so not timed
+                responses[-1].append(call)
+        since = at if at is not None else since
+    for age, response in enumerate(reversed(responses)):   # the newest response that can be measured; an older one rather than nothing
+        calls = [c for c in response if c[0] is not None and c[1] > c[0]]
+        tokens, seconds = sum(c[2] for c in calls), sum(c[1] - c[0] for c in calls)
+        speed = tokens / seconds if seconds >= MIN_SPEED_SECONDS else None
+        if speed is not None and math.isfinite(speed) and 0.5 <= speed <= MAX_SPEED:   # shows as 1 to MAX_SPEED
+            return speed, age > 0
+    return None
 
 
 def block_speed(d):
-    """Speed of the last API call, rounded once: shown as ~N tok/s, or nothing when it is off, cannot be computed or is
-    not plausible."""
+    """Speed of the last response, rounded once: shown as ~N tok/s, in red when it belongs to an older response than the
+    newest one, or nothing when it is off or cannot be computed."""
     if not SPEED_ON:
         return ""
-    speed = tokens_per_second(d)
-    n = None if speed is None or not math.isfinite(speed) else int(speed + 0.5)
-    return paint(f"~{n} tok/s", "faint") if n and n <= MAX_SPEED else ""
+    result = tokens_per_second(d)
+    if result is None:
+        return ""
+    speed, stale = result
+    return paint(f"~{int(speed + 0.5)} tok/s", "red" if stale else "faint")
 
 
 def block_model(d):

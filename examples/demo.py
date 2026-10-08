@@ -55,8 +55,8 @@ if "--bedrock" in args:
     del payload["rate_limits"]
 
 if "--speed" in args:
-    # One prompt, a tool call written in two rows (same id), its result, and a final answer: the last call is 1000
-    # output tokens over the 8 seconds since the tool result, so the status line shows ~125 tok/s.
+    # One prompt, a tool call written in two rows (same id), its result, and a final answer: 1400 output tokens over
+    # 3.1 + 8 seconds of model time (the 2 seconds the tool ran are not counted), so the status line shows ~126 tok/s.
     start = datetime.now(timezone.utc) - timedelta(seconds=13)
     at = lambda seconds: (start + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     rows = [
