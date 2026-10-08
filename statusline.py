@@ -10,7 +10,8 @@
 """Claude Code status line: reads the session JSON on stdin, prints up to three lines.
 
   1. AGENT    model + effort, fast mode, speed of the last response (~N tok/s), usage group (5h / 7d / spend bars), SLOW DOWN, estimated cost,
-              and the context window pushed to the right edge (space-between)
+              the workflow-dev story cost (only in a project that uses workflow-dev), and the context window pushed to the
+              right edge (space-between)
   2. SESSION  session name, folder and, only inside a git repo, branch and git user
   3. (opt-in) tokens of the last API call: I / O / R / W
 
@@ -21,6 +22,8 @@ Environment variables (all optional; a value that is not a number is ignored and
   STATUSLINE_ICONS=0       plain text instead of Nerd Font icons
   STATUSLINE_GIT_USER=0    hide the git user (shown by default, only inside a repo)
   STATUSLINE_SPEED=0       hide the speed of the last response (shown by default; reads the end of the local transcript file)
+  STATUSLINE_WORKFLOW_DEV_LIVE=0  do not write the session cost for workflow-dev (written by default, and only in a project
+                           that uses it: .workflow-dev/context/.usage/live/<session_id>.json)
   STATUSLINE_TOKENS=1      add a line with the last call's tokens: I (input) O (output) R (cache read) W (cache write)
   STATUSLINE_FLEX=0        do not push the context to the right edge; keep it next to the first block
   STATUSLINE_MARGIN=N      cells left free on the right in flex mode (default 8, minimum 0). Raise it if the end of line 1 is cut with "…"
@@ -30,7 +33,7 @@ Run `python3 statusline.py --version` to print the version.
 """
 import datetime, json, math, os, re, stat, subprocess, sys, time, unicodedata
 
-__version__ = "0.3.1"   # keep in sync with CHANGELOG.md
+__version__ = "0.4.0"   # keep in sync with CHANGELOG.md
 
 
 def env_int(name, default):
@@ -54,6 +57,7 @@ SPEED_ON = os.environ.get("STATUSLINE_SPEED", "1") != "0"
 TOKENS_ON = os.environ.get("STATUSLINE_TOKENS", "0") == "1"
 GIT_USER_ON = os.environ.get("STATUSLINE_GIT_USER", "1") != "0"
 FLEX_ON = os.environ.get("STATUSLINE_FLEX", "1") != "0"
+WORKFLOW_DEV_LIVE_ON = os.environ.get("STATUSLINE_WORKFLOW_DEV_LIVE", "1") != "0"
 ICON_CELLS = max(1, env_int("STATUSLINE_ICON_CELLS", 1))
 # Cells left free on the right: the status row has its own padding, and Claude Code shows its notices there.
 MARGIN = max(0, env_int("STATUSLINE_MARGIN", 8))
@@ -61,6 +65,19 @@ MIN_SPEED_SECONDS = 0.5   # a shorter span says nothing about speed (and would g
 MAX_SPEED = 99999   # tokens per second; above this the timestamps are not trustworthy
 SPEED_TAIL_BYTES = 256 * 1024   # only the end of the transcript is read: it grows with the session and this runs every 30 s
 GIT_TIMEOUT = 1   # seconds each git call may take before it is given up
+# workflow-dev's story cost index (contract: references/usage-api.md in workflow-dev). Only this schema is understood.
+STORY_INDEX = (".workflow-dev", "context", ".usage", ".index.json")
+STORY_SCHEMA = "workflow-dev.usage/1"
+STORY_INDEX_MAX_BYTES = 1024 * 1024   # a real index is a few KiB; anything bigger is not one and is not read
+STORY_ID_MAX = 64   # characters; workflow-dev ids are short (PROJ-1234). A longer one would only flood line 1
+MAX_STORY_USD = 1_000_000   # above this the index is not trustworthy, and the figure would flood line 1
+# The exact session cost is left for workflow-dev, which otherwise has to estimate it between Claude Code's own records.
+# Only in a project that uses workflow-dev: its marker file says so.
+WORKFLOW_DEV_MARKER = (".workflow-dev", "context", "REPO.md")
+LIVE_DIR = (".workflow-dev", "context", ".usage", "live")
+LIVE_SCHEMA = "workflow-dev.live-cost/1"
+LIVE_TEMP_STALE = 10   # seconds; a temporary file older than this was left by a run that was killed, and is removed
+SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")   # it becomes a file name: nothing that could leave the folder
 MAX_COLUMNS = 1000   # no real terminal is wider; a bogus COLUMNS must not make the padding enormous
 # Variables that would make `git -C <dir>` look at some other repository.
 GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY")
@@ -70,9 +87,11 @@ GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", 
 # Do not use oct-zap: it is U+26A1, a standard Unicode character that many terminals draw as an emoji.
 ICON = {"name": "\uf412", "branch": "\uf418", "folder": "\uf413", "model": "\uf4bc",
         "context": "\uf472", "usage": "\uf463",
-        "alert": "\uf421", "fast": "\uf427", "cost": "\uf439", "reset": "\uf4e3", "user": "\uf415"}
+        "alert": "\uf421", "fast": "\uf427", "cost": "\uf439", "reset": "\uf4e3", "user": "\uf415",
+        "story": "\uf4a0", "verified": "\uf42e"}
 TEXT = {"name": "", "branch": "", "folder": "", "model": "", "context": "",
-        "usage": "", "alert": "", "fast": "⚡", "cost": "", "reset": "→", "user": ""}
+        "usage": "", "alert": "", "fast": "⚡", "cost": "", "reset": "→", "user": "",
+        "story": "", "verified": "\u2713"}
 
 BAR_WIDTH = 6    # 7d, spend and context bars, in cells
 BAR_5H = 10      # the 5h bar is wider
@@ -198,21 +217,41 @@ def workspace_dir(d):
     return ""
 
 
-def git(d, *args):
-    """Cleaned stdout of `git -C <workspace> ...`, or "" if there is no directory, git is missing, fails or is too slow."""
+def git_output(d, *args):
+    """Raw stdout of `git -C <workspace> ...`, or "" if there is no directory, git is missing, fails or is too slow."""
     cwd = workspace_dir(d)
     if not cwd:
         return ""
     try:
         env = {k: v for k, v in os.environ.items() if k not in GIT_ENV_DROP}
-        return clean(subprocess.run(["git", "-C", cwd, *args], capture_output=True, text=True, env=env,
-                                    timeout=GIT_TIMEOUT).stdout.strip())
+        return subprocess.run(["git", "-C", cwd, *args], capture_output=True, text=True, env=env,
+                              timeout=GIT_TIMEOUT).stdout
     except (OSError, ValueError, subprocess.SubprocessError):
         return ""
 
 
+def git(d, *args):
+    """Cleaned stdout of `git -C <workspace> ...`, for display."""
+    return clean(git_output(d, *args).strip())
+
+
+_toplevel = {}
+
+
+def toplevel(d):
+    """Root of the work tree, or "" outside one. Asked once per run: the session line and the story cost both need it."""
+    cwd = workspace_dir(d)
+    if cwd not in _toplevel:
+        # A path to open files under, not text to show: only git's line break is removed. Cleaning it (spaces at the
+        # end, invisible characters) could turn it into another directory.
+        path = git_output(d, "rev-parse", "--show-toplevel")
+        path = path[:-1] if path.endswith("\n") else path
+        _toplevel[cwd] = "" if "\n" in path else path
+    return _toplevel[cwd]
+
+
 def in_git_repo(d):
-    return git(d, "rev-parse", "--is-inside-work-tree") == "true"
+    return bool(toplevel(d))
 
 
 def branch_of(d):
@@ -439,7 +478,108 @@ def block_model(d):
     effort_txt = paint(effort, "amber" if effort in ("high", "xhigh", "max") else "dim") if effort else ""
     head = model_txt + (" " + effort_txt if model_txt and effort_txt else effort_txt)   # model and effort, joined
     fast_txt = (paint(icon("fast") + " ", "orange") + paint("fast", "orange")) if d.get("fast_mode") is True else ""
-    return join([head, fast_txt, safe(block_speed, d), *limits(d), block_cost(d)])
+    return join([head, fast_txt, safe(block_speed, d), *limits(d), block_cost(d), safe(block_story, d)])
+
+
+def read_small_json(path, max_bytes):
+    """The parsed content of a regular file of at most max_bytes, or None if it is missing, too big or not JSON."""
+    try:
+        # O_NONBLOCK: opening a pipe that someone swapped in must not wait for a writer
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
+        with os.fdopen(fd, "rb") as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return None
+            data = f.read(max_bytes + 1)
+    except (OSError, ValueError):
+        return None
+    if len(data) > max_bytes:
+        return None
+    try:
+        return json.loads(data.decode("utf-8-sig", "replace"), parse_int=float)
+    except (ValueError, RecursionError):
+        return None
+
+
+def story_cost(d):
+    """(story id, total USD, lower bound, verified) of the story workflow-dev checkpointed last, or None. Read from
+    workflow-dev's index file in the repository; without it, or with a schema this script does not know, nothing."""
+    top = toplevel(d)
+    if not top:
+        return None
+    index = read_small_json(os.path.join(top, *STORY_INDEX), STORY_INDEX_MAX_BYTES)
+    if not isinstance(index, dict) or index.get("schema") != STORY_SCHEMA:
+        return None
+    story = index.get("last_story")
+    # The id is a key of "stories" and is printed: one that cleaning would change is rejected, not altered.
+    if not (isinstance(story, str) and 0 < len(story) <= STORY_ID_MAX and clean(story) == story):
+        return None
+    entry = section(index, "stories", story)
+    total = nonneg(entry.get("total_usd"))
+    if total is None or total > MAX_STORY_USD:
+        return None
+    return story, total, entry.get("lower_bound") is True, entry.get("verified") is True
+
+
+def block_story(d):
+    """Cost of the current workflow-dev story, across all its sessions: a different number from the session's "eq" cost.
+    "≥" when the real cost may be higher; a check when it matches what Claude Code itself recorded."""
+    result = story_cost(d)
+    if result is None:
+        return ""
+    story, total, lower_bound, verified = result
+    i, v = icon("story"), icon("verified")
+    text = paint(f"{story} {'≥' if lower_bound else ''}${total:.2f}", "dim")
+    return (paint(i + " ", "mute") if i else "") + text + (" " + paint(v, "green") if verified and v else "")
+
+
+def write_live_cost(d):
+    """Leave the session's exact cost in <repo>/.workflow-dev/context/.usage/live/<session_id>.json for workflow-dev.
+    Nothing is written outside a project that uses workflow-dev, with STATUSLINE_WORKFLOW_DEV_LIVE=0, or without a
+    session id and a cost. The file is replaced in one step, so a reader never sees half of it; errors are ignored."""
+    session_id, cost = d.get("session_id"), nonneg(get(d, "cost", "total_cost_usd"))
+    if not (WORKFLOW_DEV_LIVE_ON and isinstance(session_id, str) and SESSION_ID.fullmatch(session_id) and cost is not None):
+        return
+    top = toplevel(d)
+    if not top or not os.path.isfile(os.path.join(top, *WORKFLOW_DEV_MARKER)):
+        return
+    folder = os.path.join(top, *LIVE_DIR)
+    inside = lambda: os.path.realpath(folder).startswith(os.path.realpath(top) + os.sep)
+    try:
+        # A symlink anywhere on the way (.workflow-dev, .usage, live) must not lead out of the repository: checked
+        # before creating any folder, and again once they exist.
+        if not inside():
+            return
+        os.makedirs(folder, exist_ok=True)
+        if not inside():
+            return
+        transcript = d.get("transcript_path")
+        record = {"schema": LIVE_SCHEMA, "session_id": session_id,
+                  "transcript_path": transcript if isinstance(transcript, str) and clean(transcript) == transcript else None,
+                  "total_cost_usd": cost,
+                  "written_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        # Not the tempfile module: importing it alone costs about 9 ms, on every refresh. One temporary name per run,
+        # so no run ever writes into another's file; O_NOFOLLOW so a symlink planted under that name is not followed.
+        # Temporary files of this session left by killed runs (older than LIVE_TEMP_STALE, or dated in the future)
+        # are removed first, so they never pile up; one that cannot be removed is simply left.
+        prefix, now = f".{session_id}.", time.time()
+        for entry in os.scandir(folder):
+            if entry.name.startswith(prefix) and entry.name.endswith(".tmp"):
+                try:
+                    if not 0 <= now - entry.stat(follow_symlinks=False).st_mtime < LIVE_TEMP_STALE:
+                        os.unlink(entry.path)
+                except OSError:
+                    pass
+        temp = os.path.join(folder, f"{prefix}{os.getpid()}.{time.time_ns()}.tmp")   # unpredictable: nothing can sit there
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(record, f)
+            os.replace(temp, os.path.join(folder, session_id + ".json"))
+        except BaseException:
+            os.unlink(temp)
+            raise
+    except (OSError, ValueError):
+        pass
 
 
 def block_session(d):
@@ -516,6 +656,7 @@ def main():
             os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         except OSError:
             pass
+    safe(write_live_cost, d)
 
 
 if __name__ == "__main__":

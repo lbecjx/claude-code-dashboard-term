@@ -5,6 +5,16 @@ All notable changes to this project are listed here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the major version is 0, output and
 configuration may still change between minor versions.
 
+## [0.4.0] - 2026-10-08
+
+### Added
+- Line 1 shows the cost of the current [workflow-dev](https://github.com/lbecjx/workflow-dev) story next to the session cost (`PROJ-1234 ≥$23.45`), read from the project's `.workflow-dev/context/.usage/.index.json`.
+- `examples/demo.py --story` shows the story cost in a throwaway git repository.
+
+### Changed
+- In a project that uses workflow-dev, the script writes the session's exact cost to `.workflow-dev/context/.usage/live/<session_id>.json` on each refresh. `STATUSLINE_WORKFLOW_DEV_LIVE=0` turns it off.
+- The script asks git for the repository root (`git rev-parse --show-toplevel`); the number of git calls is the same.
+
 ## [0.3.1] - 2026-10-08
 
 ### Changed

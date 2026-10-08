@@ -14,12 +14,14 @@
     python3 examples/demo.py --bedrock | python3 statusline.py      # no usage limits, long model id
     python3 examples/demo.py --spend | python3 statusline.py        # gateway spend limit
     python3 examples/demo.py --speed | python3 statusline.py        # writes a sample transcript to a temp file
+    python3 examples/demo.py --story | python3 statusline.py        # temp git repo with a workflow-dev story cost index
 
 The payload follows the fields documented at https://code.claude.com/docs/en/statusline.
 Reset times are relative to "now", so the demo always looks current.
 """
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -69,5 +71,17 @@ if "--speed" in args:
     with tempfile.NamedTemporaryFile("w", suffix=".jsonl", prefix="statusline-demo-", delete=False) as f:
         f.write("\n".join(json.dumps(r) for r in rows) + "\n")
     payload["transcript_path"] = f.name
+
+if "--story" in args:
+    # A throwaway git repository holding the index workflow-dev writes after each story checkpoint, so line 1 shows
+    # the story's cost (≥ because part of it is an estimate) next to the session's.
+    repo = tempfile.mkdtemp(prefix="statusline-demo-")
+    subprocess.run(["git", "init", "-q", repo], check=True)
+    usage = os.path.join(repo, ".workflow-dev", "context", ".usage")
+    os.makedirs(usage)
+    with open(os.path.join(usage, ".index.json"), "w") as f:
+        json.dump({"schema": "workflow-dev.usage/1", "last_story": "PROJ-1234",
+                   "stories": {"PROJ-1234": {"total_usd": 23.4459, "lower_bound": True, "verified": False}}}, f)
+    payload["workspace"] = {"current_dir": repo}
 
 json.dump(payload, sys.stdout)
