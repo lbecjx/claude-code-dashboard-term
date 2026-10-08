@@ -30,7 +30,7 @@ Run `python3 statusline.py --version` to print the version.
 """
 import datetime, json, math, os, re, stat, subprocess, sys, time, unicodedata
 
-__version__ = "0.3.0"   # keep in sync with CHANGELOG.md
+__version__ = "0.3.1"   # keep in sync with CHANGELOG.md
 
 
 def env_int(name, default):
@@ -421,15 +421,15 @@ def tokens_per_second(d):
 
 
 def block_speed(d):
-    """Speed of the last response, rounded once: shown as ~N tok/s, in red when it belongs to an older response than the
-    newest one, or nothing when it is off or cannot be computed."""
+    """Speed of the last response, rounded once: shown as ~N tok/s, as "… tok/s" while the newest response cannot be
+    measured yet (the value would belong to an older one), or nothing when it is off or cannot be computed."""
     if not SPEED_ON:
         return ""
     result = tokens_per_second(d)
     if result is None:
         return ""
     speed, stale = result
-    return paint(f"~{int(speed + 0.5)} tok/s", "red" if stale else "faint")
+    return paint("\u2026 tok/s" if stale else f"~{int(speed + 0.5)} tok/s", "faint")
 
 
 def block_model(d):
