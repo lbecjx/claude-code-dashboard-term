@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           # Every demo payload must go through the script: exit 0, some output, nothing on stderr.
-          for flags in "" "--critical" "--opus --fast" "--bedrock" "--spend" "--speed"; do
+          for flags in "" "--critical" "--opus --fast" "--bedrock" "--spend" "--speed" "--story"; do
             for icons in 1 0; do
               python examples/demo.py $flags | STATUSLINE_ICONS=$icons COLUMNS=140 python statusline.py > out.txt 2> err.txt
               test -s out.txt
@@ -59,6 +59,112 @@ jobs:
             test ! -s err.txt
             if grep -q 'tok/s' out.txt; then echo "speed shown for $path"; exit 1; fi
           done
+
+      - name: Story cost (workflow-dev index)
+        shell: bash
+        run: |
+          # The session cost keeps its text, and the story cost shows next to it.
+          python examples/demo.py --story | COLUMNS=140 python statusline.py > out.txt
+          grep -q '\$4.87 eq' out.txt
+          grep -q 'PROJ-1234 ≥\$23.45' out.txt
+          # One repository, one index per case: what line 1 must contain, or "-" for no story segment at all.
+          repo=$(mktemp -d); git init -q "$repo"; mkdir -p "$repo/.workflow-dev/context/.usage"
+          index="$repo/.workflow-dev/context/.usage/.index.json"
+          story() { printf '{"schema":"workflow-dev.usage/1","last_story":"S-1","stories":{"S-1":%s}}' "$1"; }
+          check() {
+            printf '%s' "$1" > "$index"
+            printf '{"workspace":{"current_dir":"%s"},"cost":{"total_cost_usd":1.5}}' "$repo" |
+              STATUSLINE_ICONS=0 python statusline.py 2> err.txt | perl -pe 's/\e\[[0-9;]*m//g' > out.txt   # colors off: match the text
+            test ! -s err.txt
+            grep -q '\$1.50 eq' out.txt
+            if [ "$2" = "-" ]; then
+              if grep -q 'S-1' out.txt; then echo "story shown for: $1"; exit 1; fi
+            else
+              grep -qF -- "$2" out.txt || { echo "expected '$2' for: $1"; cat out.txt; exit 1; }
+            fi
+          }
+          check "$(story '{"total_usd":2.5}')"                                      'S-1 $2.50'
+          check "$(story '{"total_usd":2.5,"lower_bound":true}')"                   'S-1 ≥$2.50'
+          check "$(story '{"total_usd":2.5,"lower_bound":false,"verified":true}')"  'S-1 $2.50 ✓'
+          check "$(story '{"total_usd":2.5,"verified":"yes"}')"                     'S-1 $2.50'
+          check "$(story '{"total_usd":2.5,"lower_bound":true,"verified":true}')"   'S-1 ≥$2.50 ✓'
+          check "$(story '{"total_usd":1e300}')"                                    -
+          # An id that cleaning would change, or one too long to be real, is not shown (nor another story's cost).
+          check '{"schema":"workflow-dev.usage/1","last_story":"S-1\u200b","stories":{"S-1":{"total_usd":5}}}' -
+          long=$(printf 'S-1%070d' 0)
+          check "{\"schema\":\"workflow-dev.usage/1\",\"last_story\":\"$long\",\"stories\":{\"$long\":{\"total_usd\":5}}}" -
+          # Over 1 MiB: not read at all.
+          check "$(python -c 'import json; print(json.dumps({"schema":"workflow-dev.usage/1","last_story":"S-1","stories":{"S-1":{"total_usd":2.5}},"pad":"x"*1100000}))')" -
+          check "$(story '{"total_usd":-1}')"                                       -
+          check "$(story '{"total_usd":"2.5"}')"                                    -
+          check '{"schema":"workflow-dev.usage/2","last_story":"S-1","stories":{"S-1":{"total_usd":2.5}}}' -
+          check '{"schema":"workflow-dev.usage/1","last_story":null,"stories":{"S-1":{"total_usd":2.5}}}' -
+          check '{"schema":"workflow-dev.usage/1","last_story":"S-1","stories":[]}' -
+          check 'not json' -
+          check '' -
+          rm "$index"
+          check_missing() {
+            printf '{"workspace":{"current_dir":"%s"}}' "$1" | python statusline.py > out.txt 2> err.txt
+            test ! -s err.txt
+            if grep -q 'S-1' out.txt; then echo "story shown without an index: $1"; exit 1; fi
+          }
+          check_missing "$repo"            # no index file
+          mkdir "$index"; check_missing "$repo"; rmdir "$index"   # a directory where the file should be
+          check_missing "$(mktemp -d)"     # not a git repository
+
+      - name: Live cost file (workflow-dev)
+        shell: bash
+        run: |
+          repo=$(mktemp -d); git init -q "$repo"
+          live="$repo/.workflow-dev/context/.usage/live"
+          run() {   # run the script for session id $1 in the repo; extra env vars before it
+            printf '{"session_id":"%s","workspace":{"current_dir":"%s"},"cost":{"total_cost_usd":3.14159},"transcript_path":"/t/s.jsonl"}' \
+              "$1" "$repo" | env "${@:2}" python statusline.py > /dev/null 2> err.txt
+            test ! -s err.txt
+          }
+          # Without workflow-dev's marker nothing is written, not even the folder.
+          run s1
+          test ! -e "$repo/.workflow-dev"
+          mkdir -p "$repo/.workflow-dev/context"; touch "$repo/.workflow-dev/context/REPO.md"
+          # Switched off: nothing written.
+          run s1 STATUSLINE_WORKFLOW_DEV_LIVE=0
+          test ! -e "$live"
+          # On (the default): the exact cost, as valid JSON with every field, and no temporary file left behind.
+          run s1
+          python - "$live/s1.json" <<'PY'
+          import json, sys
+          r = json.load(open(sys.argv[1]))
+          assert r["schema"] == "workflow-dev.live-cost/1", r
+          assert r["session_id"] == "s1" and r["transcript_path"] == "/t/s.jsonl" and r["total_cost_usd"] == 3.14159, r
+          assert r["written_at"].endswith("Z") and len(r["written_at"]) == 20, r
+          PY
+          test "$(ls -A "$live")" = "s1.json"
+          # Temporary files left by killed runs (old, or dated in the future) are removed; a fresh one, another refresh
+          # still writing, is left alone and does not stop this write; one that cannot be removed does not either.
+          touch -t 202001010000 "$live/.s1.111.tmp"; touch -t 203001010000 "$live/.s1.222.tmp"; touch "$live/.s1.333.tmp"
+          mkdir "$live/.s1.444.tmp"; touch -t 202001010000 "$live/.s1.444.tmp"
+          rm "$live/s1.json"; run s1
+          test "$(ls -A "$live" | sort | tr '\n' ' ')" = ".s1.333.tmp .s1.444.tmp s1.json "
+          rm "$live/.s1.333.tmp"; rmdir "$live/.s1.444.tmp"
+          # A session id that is not a plain file name is never used as one.
+          run '../../escape'
+          run ''
+          test "$(ls -A "$live")" = "s1.json"
+          test ! -e "$repo/.workflow-dev/context/escape.json"
+          # The live folder, or a folder above it, is a symlink out of the repository: nothing is created there.
+          outside=$(mktemp -d); rm -r "$live"; ln -s "$outside" "$live"
+          run s2
+          test -z "$(ls -A "$outside")"
+          rm "$live"; rm -r "$repo/.workflow-dev/context/.usage"; ln -s "$outside" "$repo/.workflow-dev/context/.usage"
+          run s3
+          test -z "$(ls -A "$outside")"
+          # A repository whose path ends in a space is not mistaken for its sibling without the space.
+          base=$(mktemp -d); git init -q "$base/sp"; git init -q "$base/sp "
+          mkdir -p "$base/sp/.workflow-dev/context"; touch "$base/sp/.workflow-dev/context/REPO.md"
+          printf '{"session_id":"s4","workspace":{"current_dir":"%s"},"cost":{"total_cost_usd":1}}' "$base/sp " |
+            python statusline.py > /dev/null 2> err.txt
+          test ! -s err.txt
+          test ! -e "$base/sp/.workflow-dev/context/.usage/live/s4.json"
 
       - name: --version prints the version in the file
         shell: bash
