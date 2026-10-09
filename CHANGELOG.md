@@ -9,6 +9,7 @@ configuration may still change between minor versions.
 
 ### Changed
 - Each usage window is named with a word instead of the shared gauge icon: `Rolling` (5 hours), `Weekly` (7 days) and `Budget` (spend limit). The words show in text mode too.
+- In plain text (`STATUSLINE_ICONS=0`) the session cost reads `Eq $4.87` and the context bar starts with `Context`, in place of their icons.
 - The percentage of every usage bar is written inside the bar, no longer next to it, and the `5h` and `7d` labels are gone. A bar grows by one cell when that keeps the number centered.
 - The usage windows, the session cost and the context window are split by a thin `│` in the dim tone.
 - The context window follows the same order as the usage windows: the icon, the bar with the percentage inside, then the text (`392K/1M`). It used to put the text before the bar.

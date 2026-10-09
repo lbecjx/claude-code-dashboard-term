@@ -263,7 +263,7 @@ All settings are **optional environment variables**. A value that is not a numbe
 
 | Variable | Default | Effect |
 |---|---|---|
-| `STATUSLINE_ICONS` | `1` (on) | `0` replaces every Nerd Font icon with plain text (`→` for reset times, `⚡` for fast mode). Use it if your terminal has no Nerd Font. |
+| `STATUSLINE_ICONS` | `1` (on) | `0` replaces every Nerd Font icon with plain text (`→` for reset times, `⚡` for fast mode, the word `Eq` before the session cost and `Context` before the context bar). Use it if your terminal has no Nerd Font. |
 | `STATUSLINE_GIT_USER` | `1` (on) | `0` hides the git user on line 2. When off, the script does not even call git for it. The user is only ever shown inside a git repository. |
 | `STATUSLINE_SPEED` | `1` (on) | `0` hides the approximate speed of the last response (`~N tok/s`) and the script does not read the transcript. |
 | `STATUSLINE_TOKENS` | `0` (off) | `1` adds a third line with the last API call's tokens: `I` input, `O` output, `R` cache read, `W` cache write. |

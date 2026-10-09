@@ -105,8 +105,8 @@ ICON = {"name": "\uf412", "branch": "\uf418", "folder": "\uf413", "model": "\uf4
         "context": "\uf472",
         "fast": "\uf427", "cost": "\uf439", "reset": "\uf4e3", "user": "\uf415",
         "story": "\uf4a0", "speed": "\uf469"}
-TEXT = {"name": "", "branch": "", "folder": "", "model": "", "context": "",
-        "fast": "⚡", "cost": "", "reset": "→", "user": "",
+TEXT = {"name": "", "branch": "", "folder": "", "model": "", "context": "Context",
+        "fast": "⚡", "cost": "Eq", "reset": "→", "user": "",
         "story": "", "speed": ""}
 
 BAR_WIDTH = 6    # 7d, spend and context bars, in cells
@@ -646,7 +646,8 @@ def block_cost(d):
     if cost is None or cost < 0.005:   # nothing to show until it reaches a cent
         return ""
     i = icon("cost")
-    return (paint(i + " ", "mute") if i else "") + paint(f"${cost:.2f} eq", "dim")
+    amount = f"${cost:.2f}" + (" eq" if ICONS_ON else "")   # with plain text the word "Eq" leads instead of the icon
+    return (paint(i + " ", "mute") if i else "") + paint(amount, "dim")
 
 
 def block_tokens(d):
