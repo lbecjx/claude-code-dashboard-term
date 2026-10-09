@@ -31,6 +31,13 @@ jobs:
       - name: Smoke test
         shell: bash
         run: |
+          # The script writes nothing but stdout: not even in a repository that uses workflow-dev.
+          python examples/demo.py --story > payload.json
+          repo=$(python -c 'import json; print(json.load(open("payload.json"))["workspace"]["current_dir"])')
+          mkdir -p "$repo/.workflow-dev/context"; touch "$repo/.workflow-dev/context/REPO.md"
+          before=$(find "$repo" -path "$repo/.git" -prune -o -print | sort)
+          python statusline.py < payload.json > /dev/null
+          test "$before" = "$(find "$repo" -path "$repo/.git" -prune -o -print | sort)"
           # Every demo payload must go through the script: exit 0, some output, nothing on stderr.
           for flags in "" "--critical" "--opus --fast" "--bedrock" "--spend" "--speed" "--story"; do
             for icons in 1 0; do
@@ -67,8 +74,12 @@ jobs:
           python examples/demo.py --story | COLUMNS=140 python statusline.py > out.txt
           grep -q '\$4.87 eq' out.txt
           grep -q 'PROJ-1234 ≥\$23.45' out.txt
-          # One repository, one index per case: what line 1 must contain, or "-" for no story segment at all.
-          repo=$(mktemp -d); git init -q "$repo"; mkdir -p "$repo/.workflow-dev/context/.usage"
+          # One repository that uses workflow-dev, on a branch named after story S-1; one index per case: what line 1
+          # must contain, or "-" for no story segment at all.
+          repo=$(mktemp -d); git init -q "$repo"
+          on() { git -C "$repo" symbolic-ref HEAD "refs/heads/$1"; }   # switch branch (the repository has no commits)
+          on feature/s-1-work
+          mkdir -p "$repo/.workflow-dev/context/.usage"; touch "$repo/.workflow-dev/context/REPO.md"
           index="$repo/.workflow-dev/context/.usage/.index.json"
           story() { printf '{"schema":"workflow-dev.usage/1","last_story":"S-1","stories":{"S-1":%s}}' "$1"; }
           check() {
@@ -85,23 +96,73 @@ jobs:
           }
           check "$(story '{"total_usd":2.5}')"                                      'S-1 $2.50'
           check "$(story '{"total_usd":2.5,"lower_bound":true}')"                   'S-1 ≥$2.50'
-          check "$(story '{"total_usd":2.5,"lower_bound":false,"verified":true}')"  'S-1 $2.50 ✓'
-          check "$(story '{"total_usd":2.5,"verified":"yes"}')"                     'S-1 $2.50'
-          check "$(story '{"total_usd":2.5,"lower_bound":true,"verified":true}')"   'S-1 ≥$2.50 ✓'
+          # workflow-dev.usage/1 had a "verified" field: it is ignored, and no check mark is printed.
+          check "$(story '{"total_usd":2.5,"lower_bound":false,"verified":true}')"  'S-1 $2.50'
+          if grep -q '✓' out.txt; then echo "verified still shows a check"; exit 1; fi
           check "$(story '{"total_usd":1e300}')"                                    -
           # An id that cleaning would change, or one too long to be real, is not shown (nor another story's cost).
-          check '{"schema":"workflow-dev.usage/1","last_story":"S-1\u200b","stories":{"S-1":{"total_usd":5}}}' -
+          check '{"schema":"workflow-dev.usage/1","stories":{"S-1\u200b":{"total_usd":5}}}' -
           long=$(printf 'S-1%070d' 0)
-          check "{\"schema\":\"workflow-dev.usage/1\",\"last_story\":\"$long\",\"stories\":{\"$long\":{\"total_usd\":5}}}" -
+          on "$(printf %s "$long" | tr A-Z a-z)"   # lowercase, so the branch on line 2 is not taken for the story
+          check "{\"schema\":\"workflow-dev.usage/1\",\"stories\":{\"$long\":{\"total_usd\":5}}}" -
+          on feature/s-1-work
           # Over 1 MiB: not read at all.
           check "$(python -c 'import json; print(json.dumps({"schema":"workflow-dev.usage/1","last_story":"S-1","stories":{"S-1":{"total_usd":2.5}},"pad":"x"*1100000}))')" -
           check "$(story '{"total_usd":-1}')"                                       -
           check "$(story '{"total_usd":"2.5"}')"                                    -
-          check '{"schema":"workflow-dev.usage/2","last_story":"S-1","stories":{"S-1":{"total_usd":2.5}}}' -
-          check '{"schema":"workflow-dev.usage/1","last_story":null,"stories":{"S-1":{"total_usd":2.5}}}' -
+          # workflow-dev 1.36.0 writes /2 (no "verified", adds "open_runs"); /1 and /2 are both read, nothing newer is.
+          check '{"schema":"workflow-dev.usage/2","last_story":"S-1","stories":{"S-1":{"total_usd":2.5,"lower_bound":true,"open_runs":1}}}' 'S-1 ≥$2.50'
+          check '{"schema":"workflow-dev.usage/3","last_story":"S-1","stories":{"S-1":{"total_usd":2.5}}}' -
+          check '{"schema":"workflow-dev.usage/1","last_story":null,"stories":{"S-1":{"total_usd":2.5}}}' 'S-1 $2.50'
           check '{"schema":"workflow-dev.usage/1","last_story":"S-1","stories":[]}' -
           check 'not json' -
           check '' -
+
+          # Only the story the branch is for, whatever last_story says; the longest id the branch contains wins.
+          check '{"schema":"workflow-dev.usage/2","last_story":"S-2","stories":{"S-1":{"total_usd":1},"S-2":{"total_usd":9}}}' 'S-1 $1.00'
+          on s-10-other
+          check '{"schema":"workflow-dev.usage/2","stories":{"S-1":{"total_usd":1},"S-10":{"total_usd":2}}}' 'S-10 $2.00'
+          on main-work
+          check "$(story '{"total_usd":2.5}')" -
+          on feature/s-1-work
+          # An id that could name another folder is never used, not even as a match.
+          check '{"schema":"workflow-dev.usage/2","stories":{"s-1/..":{"total_usd":2}}}' -
+          # Without workflow-dev's marker: nothing.
+          mv "$repo/.workflow-dev/context/REPO.md" "$repo/REPO.md.off"
+          check "$(story '{"total_usd":2.5}')" -
+          mv "$repo/REPO.md.off" "$repo/.workflow-dev/context/REPO.md"
+
+          # Closed or open: workflow-dev's story file first, then local-backlog's (only with its marker).
+          ctx="$repo/.workflow-dev/context/S-1.md"; bl="$repo/local-backlog"; mkdir "$bl"
+          status() { check "$(story '{"total_usd":2.5}')" "$1"; }
+          printf '# S-1\n### Implementation Status: Done\n' > "$ctx";              status -
+          printf '**Implementation Status:** won'"'"'t do\n' > "$ctx";               status -
+          printf '### Implementation Status: In Progress\n' > "$ctx";              status 'S-1 $2.50'
+          printf '### Implementation Status: someday\n' > "$ctx";                  status 'S-1 $2.50'
+          rm "$ctx";                                                                status 'S-1 $2.50'
+          printf '| **Status** | Done |\n' > "$bl/S-1-title.md";                   status 'S-1 $2.50'   # no marker yet
+          touch "$bl/.backlog-config.json";                                         status -
+          printf '| **Status** | In Progress |\n' > "$bl/S-1-title.md";            status 'S-1 $2.50'
+          printf '| **Status** | Done |\n' > "$bl/S-1-title.md"
+          printf '### Implementation Status: In Progress\n' > "$ctx";              status 'S-1 $2.50'   # workflow-dev wins
+          # Other ways to write the status line, and a value with decoration around it.
+          rm "$bl/S-1-title.md"
+          printf '## Implementation Status\n\nDone\n' > "$ctx";                     status -
+          printf 'Implementation Status Done\n' > "$ctx";                           status -
+          printf '| Implementation Status | Done |\n' > "$ctx";                      status -
+          printf '**Implementation Status:** **Done** \xe2\x9c\x85\n' > "$ctx";      status -
+          printf 'Implementation Status: Done! merged\n' > "$ctx";                  status -
+          # A value that is no known status says nothing: local-backlog decides, and without it the story is open.
+          printf '### Implementation Status: Not started\n' > "$ctx";               status 'S-1 $2.50'
+          printf '| **Status** | Done |\n' > "$bl/S-1-title.md";                     status -
+          rm "$ctx"; mkdir "$ctx";                                                  status -             # a directory: local-backlog decides
+          rmdir "$ctx"; python -c 'print("### Implementation Status: Done\n" + "x" * 1100000)' > "$ctx"
+          status -   # over 1 MiB: not read, local-backlog decides
+          # Just under 1 MiB of blank and rule lines before the status: read and matched in well under a second.
+          python -c 'print("\n" * 500000 + "-\n" * 200000 + "### Implementation Status: Done")' > "$ctx"
+          start=$SECONDS; printf '| **Status** | In Progress |\n' > "$bl/S-1-title.md"; status -
+          test $((SECONDS - start)) -le 3 || { echo "story status took $((SECONDS - start)) s"; exit 1; }
+          rm -r "$ctx" "$bl"
           rm "$index"
           check_missing() {
             printf '{"workspace":{"current_dir":"%s"}}' "$1" | python statusline.py > out.txt 2> err.txt
@@ -112,59 +173,32 @@ jobs:
           mkdir "$index"; check_missing "$repo"; rmdir "$index"   # a directory where the file should be
           check_missing "$(mktemp -d)"     # not a git repository
 
-      - name: Live cost file (workflow-dev)
+      - name: Order of line 1
         shell: bash
         run: |
-          repo=$(mktemp -d); git init -q "$repo"
-          live="$repo/.workflow-dev/context/.usage/live"
-          run() {   # run the script for session id $1 in the repo; extra env vars before it
-            printf '{"session_id":"%s","workspace":{"current_dir":"%s"},"cost":{"total_cost_usd":3.14159},"transcript_path":"/t/s.jsonl"}' \
-              "$1" "$repo" | env "${@:2}" python statusline.py > /dev/null 2> err.txt
-            test ! -s err.txt
-          }
-          # Without workflow-dev's marker nothing is written, not even the folder.
-          run s1
-          test ! -e "$repo/.workflow-dev"
-          mkdir -p "$repo/.workflow-dev/context"; touch "$repo/.workflow-dev/context/REPO.md"
-          # Switched off: nothing written.
-          run s1 STATUSLINE_WORKFLOW_DEV_LIVE=0
-          test ! -e "$live"
-          # On (the default): the exact cost, as valid JSON with every field, and no temporary file left behind.
-          run s1
-          python - "$live/s1.json" <<'PY'
-          import json, sys
-          r = json.load(open(sys.argv[1]))
-          assert r["schema"] == "workflow-dev.live-cost/1", r
-          assert r["session_id"] == "s1" and r["transcript_path"] == "/t/s.jsonl" and r["total_cost_usd"] == 3.14159, r
-          assert r["written_at"].endswith("Z") and len(r["written_at"]) == 20, r
+          # Left: model and effort, speed, story cost. Right: usage bars, SLOW DOWN, session cost, context. Same order with
+          # flex (the right group at the right edge) and without it (one line), and no part missing.
+          order() {   # $1: demo flags; the rest: the parts of line 1 in their order
+            local flags=$1; shift
+            for flex in 1 0; do
+              python examples/demo.py $flags | STATUSLINE_ICONS=0 STATUSLINE_FLEX=$flex COLUMNS=140 python statusline.py 2> err.txt |
+                head -n 1 | perl -pe 's/\e\[[0-9;]*m//g' > line.txt
+              test ! -s err.txt
+              python - line.txt "$@" <<'PY'
+          import sys
+          line, parts = open(sys.argv[1], encoding="utf-8").read(), sys.argv[2:]
+          at = [line.find(p) for p in parts]
+          assert -1 not in at and at == sorted(at), (line, dict(zip(parts, at)))
           PY
-          test "$(ls -A "$live")" = "s1.json"
-          # Temporary files left by killed runs (old, or dated in the future) are removed; a fresh one, another refresh
-          # still writing, is left alone and does not stop this write; one that cannot be removed does not either.
-          touch -t 202001010000 "$live/.s1.111.tmp"; touch -t 203001010000 "$live/.s1.222.tmp"; touch "$live/.s1.333.tmp"
-          mkdir "$live/.s1.444.tmp"; touch -t 202001010000 "$live/.s1.444.tmp"
-          rm "$live/s1.json"; run s1
-          test "$(ls -A "$live" | sort | tr '\n' ' ')" = ".s1.333.tmp .s1.444.tmp s1.json "
-          rm "$live/.s1.333.tmp"; rmdir "$live/.s1.444.tmp"
-          # A session id that is not a plain file name is never used as one.
-          run '../../escape'
-          run ''
-          test "$(ls -A "$live")" = "s1.json"
-          test ! -e "$repo/.workflow-dev/context/escape.json"
-          # The live folder, or a folder above it, is a symlink out of the repository: nothing is created there.
-          outside=$(mktemp -d); rm -r "$live"; ln -s "$outside" "$live"
-          run s2
-          test -z "$(ls -A "$outside")"
-          rm "$live"; rm -r "$repo/.workflow-dev/context/.usage"; ln -s "$outside" "$repo/.workflow-dev/context/.usage"
-          run s3
-          test -z "$(ls -A "$outside")"
-          # A repository whose path ends in a space is not mistaken for its sibling without the space.
-          base=$(mktemp -d); git init -q "$base/sp"; git init -q "$base/sp "
-          mkdir -p "$base/sp/.workflow-dev/context"; touch "$base/sp/.workflow-dev/context/REPO.md"
-          printf '{"session_id":"s4","workspace":{"current_dir":"%s"},"cost":{"total_cost_usd":1}}' "$base/sp " |
-            python statusline.py > /dev/null 2> err.txt
-          test ! -s err.txt
-          test ! -e "$base/sp/.workflow-dev/context/.usage/live/s4.json"
+            done
+          }
+          order "--story --speed" "Sonnet 5.5 medium" "~126 tok/s" "PROJ-1234 ≥\$23.45" "5h" "7d" "\$4.87 eq" "392K/1M"
+          order "--story --critical" "Sonnet 5.5 medium" "PROJ-1234" "5h" "7d" "SLOW DOWN" "\$4.87 eq" "612K/1M"
+          # In flex mode the right group ends at the right edge (minus the margin), and a wide gap splits the two groups.
+          python examples/demo.py --story | STATUSLINE_ICONS=0 COLUMNS=140 python statusline.py | head -n 1 |
+            perl -pe 's/\e\[[0-9;]*m//g' > line.txt
+          grep -q 'PROJ-1234 ≥\$23.45   *5h' line.txt
+          test "$(python -c 'import sys; print(len(open(sys.argv[1], encoding="utf-8").read().rstrip("\n")))' line.txt)" -le 132
 
       - name: --version prints the version in the file
         shell: bash

@@ -73,15 +73,18 @@ if "--speed" in args:
     payload["transcript_path"] = f.name
 
 if "--story" in args:
-    # A throwaway git repository holding the index workflow-dev writes after each story checkpoint, so line 1 shows
-    # the story's cost (≥ because part of it is an estimate) next to the session's.
+    # A throwaway git repository that uses workflow-dev (its REPO.md marker), on a branch named after the story, holding
+    # the index workflow-dev writes after each story checkpoint, so line 1 shows the story's cost (≥ because part of it
+    # is an estimate).
     repo = tempfile.mkdtemp(prefix="statusline-demo-")
     subprocess.run(["git", "init", "-q", repo], check=True)
+    subprocess.run(["git", "-C", repo, "checkout", "-q", "-b", "proj-1234-demo"], check=True)
     usage = os.path.join(repo, ".workflow-dev", "context", ".usage")
     os.makedirs(usage)
+    open(os.path.join(repo, ".workflow-dev", "context", "REPO.md"), "w").close()
     with open(os.path.join(usage, ".index.json"), "w") as f:
-        json.dump({"schema": "workflow-dev.usage/1", "last_story": "PROJ-1234",
-                   "stories": {"PROJ-1234": {"total_usd": 23.4459, "lower_bound": True, "verified": False}}}, f)
+        json.dump({"schema": "workflow-dev.usage/2", "last_story": "PROJ-1234",
+                   "stories": {"PROJ-1234": {"total_usd": 23.4459, "lower_bound": True, "open_runs": 0}}}, f)
     payload["workspace"] = {"current_dir": repo}
 
 json.dump(payload, sys.stdout)

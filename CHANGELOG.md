@@ -5,6 +5,20 @@ All notable changes to this project are listed here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the major version is 0, output and
 configuration may still change between minor versions.
 
+## [0.5.0] - 2026-10-09
+
+### Changed
+- The story cost reads workflow-dev's index in both `workflow-dev.usage/1` and `workflow-dev.usage/2` (workflow-dev 1.36.0 writes `/2`; before this, the story cost disappeared with it).
+- The story cost shows only the story the current branch is for (its id in the branch name), only in a project with workflow-dev's `.workflow-dev/context/REPO.md`, and only while the story is open (its status in `.workflow-dev/context/<ID>.md`, then in `local-backlog/<ID>-*.md`). The index's `last_story` is no longer used.
+- `examples/demo.py --story` creates the workflow-dev marker and a branch named after the story.
+- Line 1 is split in two groups: model and effort, fast mode, speed and story cost on the left; usage bars, `SLOW DOWN`, session cost and context pushed to the right edge. Without room or with `STATUSLINE_FLEX=0`, the right group follows the left one in the same order.
+- The speed uses the story cost's style: dim text and its own pulse icon (`\uf469`).
+- README: how to get full-size icons in Ghostty with a `Mono` font, using `font-codepoint-map`.
+
+### Removed
+- The session cost file `.workflow-dev/context/.usage/live/<session_id>.json` and the `STATUSLINE_WORKFLOW_DEV_LIVE` variable: the script writes no files again, only stdout.
+- The check mark next to a verified story cost; workflow-dev's `verified` field is ignored.
+
 ## [0.4.0] - 2026-10-08
 
 ### Added
