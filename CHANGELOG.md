@@ -13,6 +13,7 @@ configuration may still change between minor versions.
 - `examples/demo.py --story` creates the workflow-dev marker and a branch named after the story.
 - Line 1 is split in two groups: model and effort, fast mode, speed and story cost on the left; usage bars, `SLOW DOWN`, session cost and context pushed to the right edge. Without room or with `STATUSLINE_FLEX=0`, the right group follows the left one in the same order.
 - The speed uses the story cost's style: dim text and its own pulse icon (`\uf469`).
+- README: how to get full-size icons in Ghostty with a `Mono` font, using `font-codepoint-map`.
 
 ### Removed
 - The session cost file `.workflow-dev/context/.usage/live/<session_id>.json` and the `STATUSLINE_WORKFLOW_DEV_LIVE` variable: the script writes no files again, only stdout.

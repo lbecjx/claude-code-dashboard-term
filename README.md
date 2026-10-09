@@ -189,7 +189,7 @@ The icons are [Octicons](https://primer.style/foundations/icons) (GitHub's icon 
 
 | Your terminal | What to do |
 |---|---|
-| **[Ghostty](https://ghostty.org)** | Nothing. It embeds the Nerd Font symbols and falls back to them for any missing character. |
+| **[Ghostty](https://ghostty.org)** | Nothing. It embeds the Nerd Font symbols and falls back to them for any missing character. If the icons look small, see [Ghostty: full-size icons with your own font](#ghostty-full-size-icons-with-your-own-font). |
 | **macOS Terminal** | It only draws the characters of the profile font and does not fall back to another font, so a symbols font does not help. Choose a complete Nerd Font as the profile font (see the alternative below, with a preview of each one), which changes your font, or keep your font and use plain text with `STATUSLINE_ICONS=0`. |
 | **Windows Terminal, VS Code** | Install the **Symbols Nerd Font** (symbols only) and add it as a fallback after your font. Your own font stays, as described below. |
 | **Anything else** (iTerm2, GNOME Terminal, ...) | Install the Symbols Nerd Font and open a new window. If the icons show, nothing else is needed; if they are boxes, use plain text or the alternative below. |
@@ -227,6 +227,16 @@ A complete Nerd Font is a regular font with the icons patched in, so using it **
 ```bash
 brew install --cask font-caskaydia-cove-nerd-font   # macOS; every Nerd Font has its own cask
 ```
+
+### Ghostty: full-size icons with your own font
+
+A `Mono` Nerd Font (for example `FiraCode Nerd Font Mono`) squeezes every icon into one cell, so the icons look smaller than the text. Ghostty can take only the icons from another font and keep yours for everything else, with `font-codepoint-map`. The status line's icons are Octicons, in the range `U+F400`-`U+F533`. Install a regular (not `Mono`) Nerd Font, then add one line to your Ghostty config:
+
+```text
+font-codepoint-map = U+F400-U+F533=CaskaydiaCove Nerd Font
+```
+
+Your `font-family` stays as it is. Reload the config (Cmd+Shift+, on macOS) or open a new window. `ghostty +list-fonts` shows the font names you can use.
 
 ### Check it
 
