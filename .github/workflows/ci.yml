@@ -176,7 +176,7 @@ jobs:
       - name: Order of line 1
         shell: bash
         run: |
-          # Left: model and effort, speed, story cost. Right: usage bars, SLOW DOWN, session cost, context. Same order with
+          # Left: model and effort, speed, story cost. Right: usage bars, session cost, context. Same order with
           # flex (the right group at the right edge) and without it (one line), and no part missing.
           order() {   # $1: demo flags; the rest: the parts of line 1 in their order
             local flags=$1; shift
@@ -192,12 +192,14 @@ jobs:
           PY
             done
           }
-          order "--story --speed" "Sonnet 5.5 medium" "~126 tok/s" "PROJ-1234 ≥\$23.45" "5h" "7d" "\$4.87 eq" "392K/1M"
-          order "--story --critical" "Sonnet 5.5 medium" "PROJ-1234" "5h" "7d" "SLOW DOWN" "\$4.87 eq" "612K/1M"
+          order "--story --speed" "Sonnet 5.5 medium" "~126 tok/s" "PROJ-1234 ≥\$23.45" "Rolling" "Weekly" "\$4.87 eq" "392K/1M"
+          order "--story --critical" "Sonnet 5.5 medium" "PROJ-1234" "Rolling" "Weekly" "\$4.87 eq" "612K/1M"
           # In flex mode the right group ends at the right edge (minus the margin), and a wide gap splits the two groups.
           python examples/demo.py --story | STATUSLINE_ICONS=0 COLUMNS=140 python statusline.py | head -n 1 |
             perl -pe 's/\e\[[0-9;]*m//g' > line.txt
-          grep -q 'PROJ-1234 ≥\$23.45   *5h' line.txt
+          grep -q 'PROJ-1234 ≥\$23.45   *Rolling' line.txt
+          # Each group of the right side is split by a vertical bar.
+          grep -q 'Rolling.*│.*Weekly.*│.*\$4.87 eq.*│.*392K/1M' line.txt
           test "$(python -c 'import sys; print(len(open(sys.argv[1], encoding="utf-8").read().rstrip("\n")))' line.txt)" -le 132
 
       - name: --version prints the version in the file

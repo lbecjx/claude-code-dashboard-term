@@ -11,7 +11,7 @@
 
   1. AGENT    on the left: model + effort, fast mode, speed of the last response (~N tok/s) and the workflow-dev story
               cost (only in a project that uses workflow-dev); pushed to the right edge (space-between): usage group
-              (5h / 7d / spend bars), SLOW DOWN, estimated session cost and the context window
+              (5h / 7d / spend bars), estimated session cost and the context window, split by a thin separator
   2. SESSION  session name, folder and, only inside a git repo, branch and git user
   3. (opt-in) tokens of the last API call: I / O / R / W
 
@@ -36,7 +36,7 @@ Run `python3 statusline.py --version` to print the version.
 """
 import datetime, json, math, os, re, stat, subprocess, sys, time, unicodedata
 
-__version__ = "0.5.0"   # keep in sync with CHANGELOG.md
+__version__ = "0.5.1"   # keep in sync with CHANGELOG.md
 
 
 def env_int(name, default):
@@ -102,11 +102,11 @@ GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", 
 # They are written as \u escapes so they stay visible in a diff.
 # Do not use oct-zap: it is U+26A1, a standard Unicode character that many terminals draw as an emoji.
 ICON = {"name": "\uf412", "branch": "\uf418", "folder": "\uf413", "model": "\uf4bc",
-        "context": "\uf472", "usage": "\uf463",
-        "alert": "\uf421", "fast": "\uf427", "cost": "\uf439", "reset": "\uf4e3", "user": "\uf415",
+        "context": "\uf472",
+        "fast": "\uf427", "cost": "\uf439", "reset": "\uf4e3", "user": "\uf415",
         "story": "\uf4a0", "speed": "\uf469"}
 TEXT = {"name": "", "branch": "", "folder": "", "model": "", "context": "",
-        "usage": "", "alert": "", "fast": "⚡", "cost": "", "reset": "→", "user": "",
+        "fast": "⚡", "cost": "", "reset": "→", "user": "",
         "story": "", "speed": ""}
 
 BAR_WIDTH = 6    # 7d, spend and context bars, in cells
@@ -294,19 +294,31 @@ def join(groups):
     return "  ".join(g for g in groups if g)
 
 
+def join_sep(parts):
+    """Parts of line 1 (windows, costs, context), split by a dim vertical bar so each one reads on its own."""
+    return ("  " + paint("│", "dim") + "  ").join(g for g in parts if g)
+
+
 # --- blocks -----------------------------------------------------------------------------------------------------------
 
-def usage_bar(p, label, window, width, tone=None):
-    """One usage bar: the bar with its label inside, the percentage, and the time until it resets."""
+def percent_bar(p, width, tone=None):
+    """Bar with its percentage inside. The text only centers when its length and the bar width are both odd or both
+    even, so the bar grows by a cell if not."""
+    text = f"{p}%"
+    width = max(width, len(text))
+    return cell_bar(p, width + (width - len(text)) % 2, text, tone)
+
+
+def usage_bar(p, word, window, width, tone=None, word_tone="bcyan"):
+    """One usage window: its word, the bar with the percentage inside, and the time until it resets."""
     reset = nonneg(window.get("resets_at"))
-    return (cell_bar(p, width, label, tone) + " " + paint(f"{p}%", level_tone(p)) +
-            (reset_txt(reset) if reset else ""))
+    return paint(word + " ", word_tone) + percent_bar(p, width, tone) + (reset_txt(reset) if reset else "")
 
 
 def limits(d):
-    """Usage group: ONE icon (a gauge) followed by whichever bars exist: 5h, 7d and spend.
-    A bar appears only if Claude Code sends its data; if none arrives the whole group (icon included) is hidden.
-    Returns a list of parts: that group, plus SLOW DOWN when the 5h window is at 80% or more."""
+    """Usage windows: whichever exist (5h, 7d and spend), each with its word.
+    A window appears only if Claude Code sends its data; if none arrives nothing is shown.
+    Returns a list with one entry per window."""
     # spend_limit only exists behind a Claude apps gateway with a spend limit
     five, week, spend = (section(d, "rate_limits", key) for key in ("five_hour", "seven_day", "spend_limit"))
     five_p, week_p, spend_p = (pct(w.get("used_percentage")) for w in (five, week, spend))
@@ -314,31 +326,22 @@ def limits(d):
 
     bars = []
     if five_p is not None:
-        bars.append(usage_bar(five_p, "5h", five, BAR_5H, "red" if critical else None))
+        bars.append(usage_bar(five_p, "Rolling", five, BAR_5H, "red" if critical else None, "red" if critical else "bcyan"))
     if week_p is not None:
-        bars.append(usage_bar(week_p, "7d", week, BAR_WIDTH))
+        bars.append(usage_bar(week_p, "Weekly", week, BAR_WIDTH))
     if spend_p is not None:
-        bars.append(usage_bar(spend_p, "spend", spend, BAR_WIDTH))
-
-    parts = []
-    if bars:
-        lead = paint(f"{icon('usage')} ", "red" if critical else "bcyan") if icon("usage") else ""
-        parts.append(lead + "  ".join(bars))
-    if critical:
-        a = icon("alert")
-        parts.append(paint((a + " " if a else "") + "SLOW DOWN", "red"))
-    return parts
+        bars.append(usage_bar(spend_p, "Budget", spend, BAR_5H))
+    return bars
 
 
 def context(d):
     ctx_p = pct(get(d, "context_window", "used_percentage"))
     tokens = nonneg(get(d, "context_window", "total_input_tokens"))
     size = nonneg(get(d, "context_window", "context_window_size"))
-    ctx = ""
-    if tokens is not None and size:
-        ctx = f"{human(tokens)}/{human(size)}"
+    amount = f"{human(tokens)}/{human(size)}" if tokens is not None and size else ""
+    ctx = percent_bar(ctx_p, BAR_WIDTH, level_tone(ctx_p)) if ctx_p is not None else ""   # icon, bar, then the text
+    ctx += (" " if ctx and amount else "") + amount
     if ctx_p is not None:
-        ctx += (" " if ctx else "") + cell_bar(ctx_p, BAR_WIDTH, f"{ctx_p}%", level_tone(ctx_p))
         # /compact keeps a summary of the conversation; /clear would throw it away, so it is never suggested here.
         # The urgency is carried by the color: dim, then yellow, then red.
         if ctx_p >= 80:
@@ -506,8 +509,8 @@ def block_model(d):
 
 
 def block_usage(d):
-    """Right group of line 1, what measures consumption: usage group, SLOW DOWN, session cost, context window."""
-    return join([*safe(limits, d), safe(block_cost, d), safe(context, d)])
+    """Right group of line 1, what measures consumption: usage group, session cost, context window."""
+    return join_sep([*safe(limits, d), safe(block_cost, d), safe(context, d)])
 
 
 def read_small_bytes(path, max_bytes):

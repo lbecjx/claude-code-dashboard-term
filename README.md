@@ -6,7 +6,7 @@ A compact, colored **status line for [Claude Code](https://code.claude.com)**. O
 
 ![claude-code-dashboard-term running in Ghostty while Claude works: model and effort, speed and workflow-dev story cost on the left, 5h and 7d usage bars with reset times, estimated session cost and context window on the right, and session, folder, git branch and user on the second line](docs/screenshot.png)
 
-*The status line in [Ghostty](https://ghostty.org), while Claude is answering. Line 1: model and effort, speed of the last response and the workflow-dev story cost on the left; the 5-hour and 7-day usage bars, estimated session cost and context window pushed to the right. Line 2: session name, folder, git branch and git user. The bars are drawn with colored cell backgrounds, with their label written on top.*
+*The status line in [Ghostty](https://ghostty.org), while Claude is answering. Line 1: model and effort, speed of the last response and the workflow-dev story cost on the left; the 5-hour and 7-day usage bars, estimated session cost and context window pushed to the right. Line 2: session name, folder, git branch and git user. The bars are drawn with colored cell backgrounds, with the percentage written on top.*
 
 ## Get started with Claude
 
@@ -77,7 +77,7 @@ PHASE 2: do it (after my OK, without asking again)
 9. You cannot see my screen, so ask me this one question. The icon characters cannot be shown in your own text, so
    tell me to run this line myself by typing `! ` (an exclamation mark and a space) before it, and ask whether I see
    icons or boxes, and whether the icons are a readable size.
-   python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf463 \uf4e3 \uf439 \uf4a0 \uf469')"
+   python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf4e3 \uf439 \uf4a0 \uf469')"
    Skip this question if my terminal is Ghostty or you already chose plain text. A new terminal window may be needed for a newly installed font to be picked up. If I still see boxes, question marks or nothing,
    set STATUSLINE_ICONS=0 in the command ("command": "STATUSLINE_ICONS=0 python3 ~/.claude/statusline.py").
 10. Finish with a short summary of what you changed, how to undo it (restore the backups), and that the status line
@@ -159,7 +159,7 @@ Requirements: Python 3.9 or newer (the CI runs 3.9, 3.12 and the latest 3.x), an
 
 **Line 1 — the agent**
 
-On the left, what describes the agent and the task: model and effort, fast mode, speed and the story cost. Pushed to the right edge, what measures consumption: the usage group, `SLOW DOWN`, the session cost and the context window. When the terminal is too narrow (or with `STATUSLINE_FLEX=0`), the right group follows the left one on the same line, in the same order.
+On the left, what describes the agent and the task: model and effort, fast mode, speed and the story cost. Pushed to the right edge, what measures consumption: the usage group, the session cost and the context window, each split from the next by a thin `│`. When the terminal is too narrow (or with `STATUSLINE_FLEX=0`), the right group follows the left one on the same line, in the same order.
 
 | Part | Meaning |
 |---|---|
@@ -167,10 +167,9 @@ On the left, what describes the agent and the task: model and effort, fast mode,
 | `fast` | Shown only while Claude Code's fast mode is on. |
 | `~126 tok/s` | **Approximate** speed of the last response, in output tokens per second: the output tokens of all its model calls divided by the time the model spent on them. Time spent running tools is not counted, but each call **includes the wait for the first token**, so the value is understated, most of all for short responses. Claude Code does not report stream timings, so it is computed from the timestamps in the session transcript. While a new response has no model call yet, or one too short to time, the number is replaced by `… tok/s` until the new response is measured. It has its own pulse icon. Nothing is shown only before the first response of the session. Turn it off with `STATUSLINE_SPEED=0`. |
 | `PROJ-1234 ≥$23.45` | Cost of the **current [workflow-dev](#workflow-dev-story-cost) story**, across every session that worked on it: a different number from the session cost (`$31.23 eq`) on the right. `≥` when the real cost may be higher (part of it is an estimate). Only in a project that uses workflow-dev, on a branch named after the story, while the story is open (see [workflow-dev story cost](#workflow-dev-story-cost)). |
-| gauge icon + bars | The **usage group**: one icon, then the bars that exist. `5h` and `7d` are your subscription windows; `spend` is a gateway spend limit. Each bar shows the percentage used and the time until it resets. |
-| `SLOW DOWN` | Shown when the 5-hour window is at 80% or more. |
+| `Rolling` · `Weekly` · `Budget` | The **usage group**: one window per bar that exists, each with its word and split from the next by a `│`. `Rolling` is the 5-hour window, `Weekly` the 7-day window (both from your subscription), `Budget` a gateway spend limit. Each bar has the percentage used written inside it, followed by the time until it resets. The bar is one cell wider when that keeps the percentage centered. |
 | `$31.23 eq` | Estimated cost of the **current session** at API list prices (Claude Code's `cost.total_cost_usd`). It starts at $0 with every new session, including after `/clear`; it is **not** a daily or weekly total. **Not what you are billed**: on a subscription nothing is billed per token, hence "eq" (equivalent). |
-| `613K/1M ▓▓▓▓░░ 61%` | Context window: tokens used out of the window size, plus a bar. At 40% you get a dim `/compact soon`, at 60% `/compact`, and from 80% the same `/compact` in red (`/compact` keeps a summary of the conversation; the urgency is carried by the color). Last part of the line, at the right edge. |
+| `▓▓▓▓░░ 61% 613K/1M` | Context window: a bar with the percentage inside, then the tokens used out of the window size (the same order as the usage windows: icon, bar, text). At 40% you get a dim `/compact soon`, at 60% `/compact`, and from 80% the same `/compact` in red (`/compact` keeps a summary of the conversation; the urgency is carried by the color). Last part of the line, at the right edge. |
 
 **Line 2 — the session**
 
@@ -241,10 +240,10 @@ Your `font-family` stays as it is. Reload the config (Cmd+Shift+, on macOS) or o
 ### Check it
 
 ```bash
-python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf463 \uf4e3 \uf439 \uf4a0 \uf469')"
+python3 -c "print('\uf412 \uf413 \uf418 \uf4bc \uf4e3 \uf439 \uf4a0 \uf469')"
 ```
 
-You should see a tag, a folder, a branch, a chip, a gauge, an hourglass, a card, a task list and a pulse. If you see boxes or question marks, the symbols font is not being used in that terminal: install it (step 1), open a new window, then try step 2, or use `STATUSLINE_ICONS=0`.
+You should see a tag, a folder, a branch, a chip, an hourglass, a card, a task list and a pulse. If you see boxes or question marks, the symbols font is not being used in that terminal: install it (step 1), open a new window, then try step 2, or use `STATUSLINE_ICONS=0`.
 
 If the icons render but look slightly off, or the end of line 1 is clipped, see [Troubleshooting](#troubleshooting).
 
@@ -282,7 +281,7 @@ These are constants at the top of `statusline.py`, meant to be edited directly:
 
 | Constant | What it controls |
 |---|---|
-| `BAR_5H`, `BAR_WIDTH` | Width in cells of the 5-hour bar (default 10) and of the 7d, spend and context bars (default 6). |
+| `BAR_5H`, `BAR_WIDTH` | Width in cells of the 5-hour bar (default 10) and of the 7d and context bars (default 6). The `Budget` bar is `BAR_5H` wide. The usage and context bars grow by one cell when that keeps the percentage inside them centered. |
 | `GIT_TIMEOUT`, `MAX_COLUMNS` | Seconds each git call may take (1) and the widest terminal the layout will assume (1000). |
 | `ICON` / `TEXT` | The icon (Nerd Font code point) and the plain-text replacement used for each field. |
 | `TONE` | Text colors. Plain ANSI numbers follow your terminal theme, `38;5;N` values are fixed 256-color. |
@@ -295,7 +294,7 @@ These are constants at the top of `statusline.py`, meant to be edited directly:
 |---|---|---|
 | healthy | green | percentages and bars below the warning level |
 | warning | yellow | 60-79%, for both the percentage text and the bars; `/compact`; `Opus`; effort `high`, `xhigh`, `max` |
-| critical | red | 80% and above; the red `/compact`; `SLOW DOWN`; the usage icon turns red while the 5-hour window is critical |
+| critical | red | 80% and above; the red `/compact`; the `Rolling` word and bar turn red while the 5-hour window is critical |
 | fast mode | orange | the rocket and the word `fast` |
 | empty part of a bar | gray | background |
 
@@ -321,7 +320,7 @@ What you see depends on what Claude Code sends, which depends on how you authent
 
 | How you use Claude Code | Usage bars | Cost |
 |---|---|---|
-| Claude **Pro / Max** subscription | `5h` and `7d` windows (after the first response of a session) | shown as `eq` |
+| Claude **Pro / Max** subscription | `Rolling` and `Weekly` windows (after the first response of a session) | shown as `eq` |
 | **Amazon Bedrock**, direct API | none: Claude Code sends no subscription limits, so the usage group is hidden | shown if Claude Code computes it |
 | Behind a **Claude apps gateway** with a spend limit | a `spend` bar (needs Claude Code 2.1.251 or later) | shown as `eq` |
 
@@ -350,7 +349,7 @@ Add `STATUSLINE_ICONS=0` in front to see the plain-text version, and `COLUMNS=14
 | The end of line 1 is cut with `…` | Claude Code reserves space on the right. Raise `STATUSLINE_MARGIN`. |
 | Icons overlap the text | Your terminal draws icons wider than one cell. Use the `Mono` variant of your Nerd Font (for a symbols font, `SymbolsNerdFontMono-Regular.ttf` in the downloaded zip), or set `STATUSLINE_ICON_CELLS=2`. |
 | Icons look tiny | You are using a `Mono` variant, which shrinks every icon to fit one cell. Switch to the regular variant of the same Nerd Font (for example `CaskaydiaCove Nerd Font` instead of `CaskaydiaCove Nerd Font Mono`). |
-| No `5h` / `7d` bars | They only exist with a Pro / Max subscription, and only after the first response of a session. With Bedrock or an API key they never exist. |
+| No `Rolling` / `Weekly` bars | They only exist with a Pro / Max subscription, and only after the first response of a session. With Bedrock or an API key they never exist. |
 | No branch and no user | You are not inside a git repository, or `git` is not installed. This is intentional. |
 | No session name | None has been set yet. Use `claude --name "..."` or `/rename`. |
 | Nothing shows up at all | Run `python3 examples/demo.py \| python3 statusline.py`. If that prints, the script is fine and the problem is the `statusLine` block in `settings.json`. |
