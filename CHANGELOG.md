@@ -11,10 +11,11 @@ configuration may still change between minor versions.
 - Each usage window is named with a word instead of the shared gauge icon: `Rolling` (5 hours), `Weekly` (7 days) and `Budget` (spend limit). The words show in text mode too.
 - The percentage of every usage bar is written inside the bar, no longer next to it, and the `5h` and `7d` labels are gone. A bar grows by one cell when that keeps the number centered.
 - The usage windows, the session cost and the context window are split by a thin `│` in the dim tone.
-- The context window follows the same order as the usage windows: the icon, the bar with the percentage inside, then the text (`392K/1M`) and `/compact`. It used to put the text before the bar.
+- The context window follows the same order as the usage windows: the icon, the bar with the percentage inside, then the text (`392K/1M`). It used to put the text before the bar.
 
 ### Removed
 - `SLOW DOWN`. The red `Rolling` word and bar already say the 5-hour window is at 80% or more. The `alert` and `usage` icons went with it.
+- The `/compact` hint next to the context window. The color of its bar (yellow from 60%, red from 80%) already carries the urgency.
 
 ## [0.5.0] - 2026-10-09
 

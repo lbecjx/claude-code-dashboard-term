@@ -340,16 +340,7 @@ def context(d):
     size = nonneg(get(d, "context_window", "context_window_size"))
     amount = f"{human(tokens)}/{human(size)}" if tokens is not None and size else ""
     ctx = percent_bar(ctx_p, BAR_WIDTH, level_tone(ctx_p)) if ctx_p is not None else ""   # icon, bar, then the text
-    ctx += (" " if ctx and amount else "") + amount
-    if ctx_p is not None:
-        # /compact keeps a summary of the conversation; /clear would throw it away, so it is never suggested here.
-        # The urgency is carried by the color: dim, then yellow, then red.
-        if ctx_p >= 80:
-            ctx += " " + paint("/compact", "red")
-        elif ctx_p >= 60:
-            ctx += " " + paint("/compact", "amber")
-        elif ctx_p >= 40:
-            ctx += " " + paint("/compact soon", "dim")
+    ctx += (" " if ctx and amount else "") + amount   # the urgency is carried by the bar's color alone
     if ctx and icon("context"):
         ctx = paint(icon("context") + " ", "cyan") + ctx
     return ctx

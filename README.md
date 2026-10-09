@@ -169,7 +169,7 @@ On the left, what describes the agent and the task: model and effort, fast mode,
 | `PROJ-1234 ≥$23.45` | Cost of the **current [workflow-dev](#workflow-dev-story-cost) story**, across every session that worked on it: a different number from the session cost (`$31.23 eq`) on the right. `≥` when the real cost may be higher (part of it is an estimate). Only in a project that uses workflow-dev, on a branch named after the story, while the story is open (see [workflow-dev story cost](#workflow-dev-story-cost)). |
 | `Rolling` · `Weekly` · `Budget` | The **usage group**: one window per bar that exists, each with its word and split from the next by a `│`. `Rolling` is the 5-hour window, `Weekly` the 7-day window (both from your subscription), `Budget` a gateway spend limit. Each bar has the percentage used written inside it, followed by the time until it resets. The bar is one cell wider when that keeps the percentage centered. |
 | `$31.23 eq` | Estimated cost of the **current session** at API list prices (Claude Code's `cost.total_cost_usd`). It starts at $0 with every new session, including after `/clear`; it is **not** a daily or weekly total. **Not what you are billed**: on a subscription nothing is billed per token, hence "eq" (equivalent). |
-| `▓▓▓▓░░ 61% 613K/1M` | Context window: a bar with the percentage inside, then the tokens used out of the window size (the same order as the usage windows: icon, bar, text). At 40% you get a dim `/compact soon`, at 60% `/compact`, and from 80% the same `/compact` in red (`/compact` keeps a summary of the conversation; the urgency is carried by the color). Last part of the line, at the right edge. |
+| `▓▓▓▓░░ 61% 613K/1M` | Context window: a bar with the percentage inside, then the tokens used out of the window size (the same order as the usage windows: icon, bar, text). The bar turns yellow from 60% and red from 80%. Last part of the line, at the right edge. |
 
 **Line 2 — the session**
 
@@ -293,8 +293,8 @@ These are constants at the top of `statusline.py`, meant to be edited directly:
 | State | Color | Applies to |
 |---|---|---|
 | healthy | green | percentages and bars below the warning level |
-| warning | yellow | 60-79%, for both the percentage text and the bars; `/compact`; `Opus`; effort `high`, `xhigh`, `max` |
-| critical | red | 80% and above; the red `/compact`; the `Rolling` word and bar turn red while the 5-hour window is critical |
+| warning | yellow | 60-79%, for both the percentage text and the bars; `Opus`; effort `high`, `xhigh`, `max` |
+| critical | red | 80% and above; the `Rolling` word and bar turn red while the 5-hour window is critical |
 | fast mode | orange | the rocket and the word `fast` |
 | empty part of a bar | gray | background |
 
